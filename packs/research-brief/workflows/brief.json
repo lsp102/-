@@ -1,0 +1,53 @@
+{
+  "id": "brief",
+  "name": "并行调研 → 汇合 → 校验",
+  "entry": "receive",
+  "nodes": {
+    "receive": { "type": "input", "next": "fanout" },
+    "fanout": {
+      "type": "parallel",
+      "actor": "orchestrator",
+      "branches": ["src_policy", "src_stats", "src_case"],
+      "next": "join"
+    },
+    "src_policy": {
+      "type": "agent", "actor": "src_policy", "agent": "src_policy",
+      "input": { "topic": "event.topic" }, "out": "policy", "next": null
+    },
+    "src_stats": {
+      "type": "agent", "actor": "src_stats", "agent": "src_stats",
+      "input": { "topic": "event.topic" }, "out": "stats", "next": null
+    },
+    "src_case": {
+      "type": "agent", "actor": "src_case", "agent": "src_case",
+      "input": { "topic": "event.topic" }, "out": "case", "next": null
+    },
+    "join": {
+      "type": "transform",
+      "actor": "orchestrator",
+      "set": { "merged": "ctx.policy.points + ctx.stats.points + ctx.case.points" },
+      "next": "synth"
+    },
+    "synth": {
+      "type": "agent", "actor": "synth", "agent": "synth",
+      "input": { "merged": "ctx.merged" }, "out": "summary", "next": "check"
+    },
+    "check": {
+      "type": "agent", "actor": "checker", "agent": "checker",
+      "input": { "text": "ctx.summary.text" }, "out": "check", "next": "gate_check"
+    },
+    "gate_check": {
+      "type": "condition",
+      "when": "ctx.check.ok",
+      "then": "report",
+      "else": "end_partial"
+    },
+    "report": {
+      "type": "transform", "actor": "synth",
+      "set": { "report": "ctx.summary.text" },
+      "next": "end_ok"
+    },
+    "end_ok": { "type": "end", "status": "ok" },
+    "end_partial": { "type": "end", "status": "partial" }
+  }
+}

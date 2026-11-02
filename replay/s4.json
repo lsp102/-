@@ -1,0 +1,20 @@
+{
+  "id": "s4",
+  "title": "误报 · 撤销窗口内取消",
+  "note": "老人在窗口内按键撤销，未发出任何通知",
+  "elder_id": "e003",
+  "source": "phone_sensor",
+  "confidence": 0.88,
+  "base_level": "mid",
+  "cancel_window_s": 0.3,
+  "flags": { "cancel_after_ms": 80 },
+  "expect": {
+    "level": "mid",
+    "forbid_move": false,
+    "guard": false,
+    "escalated": 0,
+    "outcome": "CANCELLED_BY_ELDER",
+    "notified": false,
+    "merged": false
+  }
+}

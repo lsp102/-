@@ -1,0 +1,20 @@
+{
+  "id": "s8",
+  "title": "重复触发 · 事件去重",
+  "note": "同一老人 10s 内重复触发，合并为同一事件，不重复通知",
+  "elder_id": "e002",
+  "source": "phone_sensor",
+  "confidence": 0.90,
+  "base_level": "mid",
+  "flags": { "answer": [true], "answer_at": [10] },
+  "repeat": 2,
+  "expect": {
+    "level": "high",
+    "forbid_move": false,
+    "guard": false,
+    "escalated": 0,
+    "outcome": "ANSWERED",
+    "notified": true,
+    "merged": true
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "s3",
+  "title": "真实跌倒 · 抗凝药禁忌（冲突消解）",
+  "note": "老人服华法林且有骨质疏松：联络 Agent 的「先扶起」建议被 Supervisor 否决",
+  "elder_id": "e001",
+  "source": "phone_sensor",
+  "confidence": 0.94,
+  "base_level": "mid",
+  "flags": { "answer": [true], "answer_at": [12] },
+  "expect": {
+    "level": "critical",
+    "forbid_move": true,
+    "guard": true,
+    "escalated": 0,
+    "outcome": "ANSWERED",
+    "notified": true,
+    "merged": false
+  }
+}

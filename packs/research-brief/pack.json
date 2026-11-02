@@ -1,0 +1,9 @@
+{
+  "id": "research-brief",
+  "name": "多源调研与简报生成",
+  "version": "0.1.0",
+  "description": "第二 pack：并行扇出 + 汇合 + 校验回退，用来证明平台与业务解耦",
+  "default_workflow": "brief",
+  "workflows": { "brief": "workflows/brief.json" },
+  "params": { "min_chars": 10 }
+}

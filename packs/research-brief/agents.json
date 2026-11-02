@@ -1,0 +1,9 @@
+{
+  "agents": {
+    "src_policy": { "name": "政策检索", "driver": "handler", "handler": "src_policy", "permissions": [], "tools": [] },
+    "src_stats": { "name": "数据检索", "driver": "handler", "handler": "src_stats", "permissions": [], "tools": [] },
+    "src_case": { "name": "案例检索", "driver": "handler", "handler": "src_case", "permissions": [], "tools": [] },
+    "synth": { "name": "综合", "driver": "handler", "handler": "synth", "permissions": ["write"], "tools": [] },
+    "checker": { "name": "校验", "driver": "handler", "handler": "checker", "permissions": ["verify"], "tools": [] }
+  }
+}

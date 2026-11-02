@@ -1,0 +1,18 @@
+{
+  "id": "s6",
+  "title": "网络中断 · 恢复后补发",
+  "note": "推送先失败并退避重试，网络恢复后送达，通知不丢",
+  "elder_id": "e002",
+  "source": "phone_sensor",
+  "confidence": 0.90,
+  "base_level": "mid",
+  "flags": { "network_down_ms": 1200, "answer": [true], "answer_at": [10] },
+  "expect": {
+    "forbid_move": false,
+    "escalated": 0,
+    "outcome": "ANSWERED",
+    "notified": true,
+    "merged": false,
+    "degraded": true
+  }
+}

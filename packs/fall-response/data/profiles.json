@@ -1,0 +1,43 @@
+{
+  "e001": {
+    "elder_id": "e001",
+    "name": "王秀兰",
+    "age": 79,
+    "lives_alone": true,
+    "conditions": ["高血压", "骨质疏松"],
+    "medications": ["华法林", "氨氯地平"],
+    "address": "阳光小区 3 栋 2 单元 501",
+    "contacts": [
+      {"id": "c1", "name": "李伟（长子）", "role": "family", "phone": "138-0000-0001"},
+      {"id": "c2", "name": "李娜（女儿）", "role": "family", "phone": "138-0000-0002"},
+      {"id": "c3", "name": "阳光社区值班室", "role": "community", "phone": "010-6666-1234"}
+    ]
+  },
+  "e002": {
+    "elder_id": "e002",
+    "name": "张建国",
+    "age": 76,
+    "lives_alone": true,
+    "conditions": ["高血压"],
+    "medications": ["氨氯地平"],
+    "address": "阳光小区 7 栋 1 单元 302",
+    "contacts": [
+      {"id": "c1", "name": "张敏（女儿）", "role": "family", "phone": "139-0000-0011"},
+      {"id": "c2", "name": "张涛（侄子）", "role": "family", "phone": "139-0000-0012"},
+      {"id": "c3", "name": "阳光社区值班室", "role": "community", "phone": "010-6666-1234"}
+    ]
+  },
+  "e003": {
+    "elder_id": "e003",
+    "name": "陈桂芳",
+    "age": 74,
+    "lives_alone": false,
+    "conditions": ["糖尿病"],
+    "medications": ["二甲双胍"],
+    "address": "阳光小区 5 栋 3 单元 601",
+    "contacts": [
+      {"id": "c1", "name": "陈静（女儿，同住）", "role": "family", "phone": "137-0000-0021"},
+      {"id": "c2", "name": "阳光社区值班室", "role": "community", "phone": "010-6666-1234"}
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "s5",
+  "title": "误报 · 错过撤销窗口",
+  "note": "通知已发出，家属端显示「可能误报」标签，可一键标记",
+  "elder_id": "e003",
+  "source": "phone_sensor",
+  "confidence": 0.81,
+  "base_level": "mid",
+  "flags": { "answer": [true], "answer_at": [5] },
+  "expect": {
+    "level": "mid",
+    "forbid_move": false,
+    "guard": false,
+    "escalated": 0,
+    "outcome": "ANSWERED",
+    "notified": true,
+    "merged": false
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "s2",
+  "title": "真实跌倒 · 全部无人接听",
+  "note": "独居老人，两位家属均未接听，升级到社区上门",
+  "elder_id": "e002",
+  "source": "phone_sensor",
+  "confidence": 0.91,
+  "base_level": "mid",
+  "flags": { "answer": [false, false], "answer_at": [] },
+  "expect": {
+    "level": "high",
+    "forbid_move": false,
+    "guard": false,
+    "escalated": 2,
+    "outcome": "COMMUNITY_ESCALATED",
+    "notified": true,
+    "merged": false
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "fall-response",
+  "name": "独居老人跌倒响应",
+  "version": "0.1.0",
+  "description": "演示 pack：串行判定 + 人工撤销窗口 + 升级链 + 冲突护栏",
+  "default_workflow": "response",
+  "workflows": {
+    "response": "workflows/response.json",
+    "single": "workflows/single.json"
+  },
+  "params": {
+    "confidence_threshold": 0.6,
+    "cancel_window_s": 0.0,
+    "ring_timeout_s": 30.0,
+    "answer_ring_s": 6.0,
+    "push_ms": 200
+  }
+}

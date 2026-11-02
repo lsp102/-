@@ -1,0 +1,72 @@
+[
+  {
+    "id": "s1",
+    "title": "真实跌倒 · 家属接听",
+    "profile": "e003",
+    "event": { "confidence": 0.93, "base_level": "mid", "source": "phone_sensor" },
+    "params": { "answer": [true], "answer_at": [8] },
+    "expect": { "final": "answered", "ctx.triage.level": "mid", "trace.veto": 0 }
+  },
+  {
+    "id": "s2",
+    "title": "真实跌倒 · 全部无人接听",
+    "profile": "e002",
+    "event": { "confidence": 0.91, "base_level": "mid", "source": "phone_sensor" },
+    "params": { "answer": [false, false], "answer_at": [] },
+    "expect": { "final": "community", "ctx.triage.level": "high" }
+  },
+  {
+    "id": "s3",
+    "title": "真实跌倒 · 抗凝药禁忌（冲突消解）",
+    "profile": "e001",
+    "event": { "confidence": 0.94, "base_level": "mid", "source": "phone_sensor" },
+    "params": { "answer": [true], "answer_at": [12] },
+    "expect": {
+      "final": "answered",
+      "ctx.triage.level": "critical",
+      "ctx.triage.forbid_move": true,
+      "trace.veto": 1
+    }
+  },
+  {
+    "id": "s4",
+    "title": "误报 · 撤销窗口内取消",
+    "profile": "e003",
+    "event": { "confidence": 0.88, "base_level": "mid", "source": "phone_sensor" },
+    "params": { "cancel_window_s": 0.3, "cancel_after_ms": 80 },
+    "expect": { "final": "cancelled" }
+  },
+  {
+    "id": "s5",
+    "title": "误报 · 错过撤销窗口",
+    "profile": "e003",
+    "event": { "confidence": 0.81, "base_level": "mid", "source": "phone_sensor" },
+    "params": { "answer": [true], "answer_at": [5] },
+    "expect": { "final": "answered" }
+  },
+  {
+    "id": "s6",
+    "title": "网络中断 · 退避重试",
+    "profile": "e002",
+    "event": { "confidence": 0.9, "base_level": "mid", "source": "phone_sensor" },
+    "params": { "network_down_ms": 1200, "answer": [true], "answer_at": [10] },
+    "expect": { "final": "answered", "ctx.pushed.degraded": true }
+  },
+  {
+    "id": "s7",
+    "title": "主通道故障 · 切备用通道",
+    "profile": "e002",
+    "event": { "confidence": 0.9, "base_level": "mid", "source": "phone_sensor" },
+    "params": { "primary_down": true, "answer": [true], "answer_at": [10] },
+    "expect": { "final": "answered", "ctx.pushed.channel": "fallback" }
+  },
+  {
+    "id": "s8",
+    "title": "重复触发 · 事件去重",
+    "profile": "e002",
+    "event": { "confidence": 0.9, "base_level": "mid", "source": "phone_sensor" },
+    "params": { "answer": [true], "answer_at": [10] },
+    "repeat": 2,
+    "expect": { "final": "merged" }
+  }
+]

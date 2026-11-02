@@ -1,0 +1,18 @@
+{
+  "id": "s7",
+  "title": "主通道故障 · 切备用通道",
+  "note": "主推送通道不可用，自动降级到备用通道",
+  "elder_id": "e002",
+  "source": "phone_sensor",
+  "confidence": 0.90,
+  "base_level": "mid",
+  "flags": { "primary_down": true, "answer": [true], "answer_at": [10] },
+  "expect": {
+    "forbid_move": false,
+    "escalated": 0,
+    "outcome": "ANSWERED",
+    "notified": true,
+    "merged": false,
+    "degraded": true
+  }
+}

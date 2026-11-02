@@ -1,0 +1,71 @@
+{
+  "rules": [
+    {
+      "id": "R-ANTICOAG",
+      "desc": "服用抗凝/抗血小板药物",
+      "when": {
+        "medications_any": ["华法林", "利伐沙班", "阿哌沙班", "达比加群", "氯吡格雷", "阿司匹林", "抗凝"]
+      },
+      "then": {
+        "level": "critical",
+        "forbid_move": true,
+        "plan_add": [
+          "禁止搬动、抱起或让老人坐起，保持原位等待专业人员",
+          "按疑似颅内出血处理，建议直接呼叫 120"
+        ],
+        "rationale": "抗凝药使用者跌倒后颅内出血风险显著升高，搬动可能加重出血"
+      }
+    },
+    {
+      "id": "R-OSTEOPOROSIS",
+      "desc": "骨质疏松",
+      "when": { "conditions_any": ["骨质疏松", "骨密度低"] },
+      "then": {
+        "level": "high",
+        "forbid_move": true,
+        "plan_add": ["避免拖拽或扶起，等待专业人员到场"],
+        "rationale": "骨质疏松者跌倒后椎体/髋部骨折风险高，二次搬动可能造成二次损伤"
+      }
+    },
+    {
+      "id": "R-LIVES_ALONE",
+      "desc": "独居，无人第一时间发现",
+      "when": { "lives_alone": true },
+      "then": {
+        "level": "high",
+        "plan_add": ["同步通知社区值班室，缩短上门时间"],
+        "rationale": "独居老人无人发现是跌倒致死的主要因素"
+      }
+    },
+    {
+      "id": "R-NO_FAMILY",
+      "desc": "无直系联系人",
+      "when": { "no_family_contact": true },
+      "then": {
+        "level": "critical",
+        "plan_add": ["无直系联系人，直接联系社区值班室与 120"],
+        "rationale": "无直系联系人，常规升级链在第一环即中断，需直接走社区"
+      }
+    },
+    {
+      "id": "R-AGE_80",
+      "desc": "高龄（>=80）",
+      "when": { "age_gte": 80 },
+      "then": {
+        "level": "high",
+        "plan_add": ["高龄叠加跌倒，优先缩短响应阈值"],
+        "rationale": "80 岁以上跌倒后并发症与死亡率显著上升"
+      }
+    },
+    {
+      "id": "R-NIGHT",
+      "desc": "夜间跌倒",
+      "when": { "night": true },
+      "then": {
+        "level": "high",
+        "plan_add": ["夜间跌倒：家中无人协助概率高，升级阈值下调"],
+        "rationale": "夜间独处发现延迟风险最高"
+      }
+    }
+  ]
+}

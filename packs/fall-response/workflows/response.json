@@ -1,0 +1,136 @@
+{
+  "id": "response",
+  "name": "跌倒响应（多智能体）",
+  "entry": "receive",
+  "nodes": {
+    "receive": {
+      "type": "input",
+      "next": "gate_confidence"
+    },
+    "gate_confidence": {
+      "type": "condition",
+      "when": "event.confidence >= params.confidence_threshold",
+      "then": "dedupe",
+      "else": "end_low_confidence"
+    },
+    "dedupe": {
+      "type": "tool",
+      "actor": "supervisor",
+      "agent": "supervisor",
+      "tool": "event.dedupe",
+      "args": { "elder_id": "profile.elder_id" },
+      "out": "dup",
+      "next": "gate_duplicate"
+    },
+    "gate_duplicate": {
+      "type": "condition",
+      "when": "ctx.dup.found",
+      "then": "end_merged",
+      "else": "triage"
+    },
+    "triage": {
+      "type": "agent",
+      "actor": "triage",
+      "agent": "triage",
+      "input": { "profile": "profile", "event": "event" },
+      "out": "triage",
+      "next": "retrieve"
+    },
+    "retrieve": {
+      "type": "knowledge",
+      "actor": "triage",
+      "query": "ctx.triage.query",
+      "k": 3,
+      "out": "hits",
+      "next": "draft"
+    },
+    "draft": {
+      "type": "agent",
+      "actor": "contact",
+      "agent": "contact",
+      "input": { "name": "profile.name", "level": "ctx.triage.level" },
+      "out": "draft",
+      "next": "guard"
+    },
+    "guard": {
+      "type": "agent",
+      "actor": "supervisor",
+      "agent": "supervisor_guard",
+      "input": {
+        "text": "ctx.draft.text",
+        "forbid_move": "ctx.triage.forbid_move",
+        "level": "ctx.triage.level"
+      },
+      "out": "msg",
+      "next": "cancel_window"
+    },
+    "cancel_window": {
+      "type": "wait",
+      "actor": "supervisor",
+      "duration": "params.cancel_window_s",
+      "on_cancel": "end_cancelled",
+      "next": "push"
+    },
+    "push": {
+      "type": "tool",
+      "actor": "contact",
+      "agent": "contact",
+      "tool": "push",
+      "args": { "text": "ctx.msg.text" },
+      "out": "pushed",
+      "next": "gate_push"
+    },
+    "gate_push": {
+      "type": "condition",
+      "when": "ctx.pushed.ok",
+      "then": "call_loop",
+      "else": "end_push_failed"
+    },
+    "call_loop": {
+      "type": "foreach",
+      "actor": "escalate",
+      "over": "ctx.triage.contacts",
+      "body": "call_one",
+      "break_when": "ctx.call.answered",
+      "on_break": "end_answered",
+      "on_exhausted": "page_community",
+      "max": 5
+    },
+    "call_one": {
+      "type": "agent",
+      "actor": "contact",
+      "agent": "contact_call",
+      "input": {
+        "contact": "item",
+        "ring": "params.ring_timeout_s",
+        "answer": "get(params, 'answer', [])",
+        "answer_at": "get(params, 'answer_at', [])",
+        "index": "ctx.index"
+      },
+      "out": "call",
+      "next": null
+    },
+    "page_community": {
+      "type": "tool",
+      "actor": "escalate",
+      "agent": "escalate",
+      "tool": "page_community",
+      "args": { "contact": "ctx.triage.community" },
+      "out": "community",
+      "next": "gate_120"
+    },
+    "gate_120": {
+      "type": "condition",
+      "when": "ctx.triage.need_120",
+      "then": "end_community_120",
+      "else": "end_community"
+    },
+    "end_answered": { "type": "end", "status": "answered" },
+    "end_community": { "type": "end", "status": "community" },
+    "end_community_120": { "type": "end", "status": "community_120" },
+    "end_merged": { "type": "end", "status": "merged" },
+    "end_cancelled": { "type": "end", "status": "cancelled" },
+    "end_push_failed": { "type": "end", "status": "push_failed" },
+    "end_low_confidence": { "type": "end", "status": "discarded" }
+  }
+}

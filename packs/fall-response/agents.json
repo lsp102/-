@@ -1,0 +1,60 @@
+{
+  "agents": {
+    "triage": {
+      "name": "分诊",
+      "driver": "handler",
+      "handler": "triage",
+      "permissions": ["read_profile", "read_rules"],
+      "tools": []
+    },
+    "contact": {
+      "name": "联络",
+      "driver": "handler",
+      "handler": "draft",
+      "permissions": ["push"],
+      "tools": ["push"]
+    },
+    "contact_call": {
+      "name": "联络·外呼",
+      "driver": "handler",
+      "handler": "call",
+      "permissions": ["call"],
+      "tools": []
+    },
+    "supervisor_guard": {
+      "name": "Supervisor 护栏",
+      "driver": "handler",
+      "handler": "guard",
+      "permissions": ["veto"],
+      "tools": []
+    },
+    "supervisor": {
+      "name": "Supervisor",
+      "driver": "handler",
+      "handler": "noop",
+      "permissions": ["dedupe"],
+      "tools": ["event.dedupe"]
+    },
+    "escalate": {
+      "name": "升级",
+      "driver": "handler",
+      "handler": "noop",
+      "permissions": ["dispatch"],
+      "tools": ["page_community"]
+    },
+    "baseline_triage": {
+      "name": "单Agent·分诊",
+      "driver": "handler",
+      "handler": "baseline_triage",
+      "permissions": [],
+      "tools": []
+    },
+    "contact_first": {
+      "name": "单Agent·外呼",
+      "driver": "handler",
+      "handler": "call_first",
+      "permissions": ["call"],
+      "tools": []
+    }
+  }
+}

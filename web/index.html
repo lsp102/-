@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FallGuard Harness · 多智能体编排调度平台</title>
+<style>
+  :root{
+    --bg:#080d18; --panel:#0f1729; --panel2:#141f36; --line:#22304d;
+    --txt:#e6edf7; --dim:#8b9bb8; --accent:#4b8bf5;
+    --ok:#22c55e; --warn:#f59e0b; --err:#ef4444; --veto:#a855f7;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--txt);font-size:13px;
+    font-family:"Microsoft YaHei","PingFang SC",system-ui,-apple-system,sans-serif;
+    display:grid;grid-template-rows:52px 1fr;overflow:hidden}
+
+  header{display:flex;align-items:center;gap:14px;padding:0 16px;
+    background:linear-gradient(90deg,#0b1322,#13224a);border-bottom:1px solid var(--line)}
+  header .logo{font-weight:700;font-size:15px;letter-spacing:.4px}
+  header .logo span{color:var(--accent)}
+  header .sub{color:var(--dim);font-size:11px}
+  .grow{flex:1}
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    padding:5px 11px;border-radius:7px;cursor:pointer;font-size:12px;transition:.15s}
+  button:hover{border-color:var(--accent);color:#fff}
+  button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  label.chk{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:5px;cursor:pointer}
+
+  main{display:grid;grid-template-columns:292px 1fr;min-height:0}
+  aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:10px}
+  .pack{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+    padding:9px 11px;margin-bottom:8px;cursor:pointer;transition:.15s}
+  .pack:hover{border-color:var(--accent)}
+  .pack.on{border-color:var(--accent);background:#17264a}
+  .pack .pname{font-weight:600}
+  .pack .pmeta{color:var(--dim);font-size:10.5px;margin-top:3px}
+  .sect{color:var(--dim);font-size:11px;margin:14px 0 7px;letter-spacing:.5px}
+  .scen{background:var(--panel2);border:1px solid var(--line);border-radius:7px;
+    padding:7px 9px;margin-bottom:6px;cursor:pointer;line-height:1.4;transition:.15s}
+  .scen:hover{border-color:var(--accent);transform:translateX(2px)}
+  .scen .sid{color:var(--accent);font-weight:700;font-family:ui-monospace,Consolas,monospace;
+    font-size:11px;margin-right:5px}
+
+  #stage{display:grid;grid-template-rows:46px 1fr auto 258px;min-height:0;min-width:0}
+  #graphbar{display:flex;align-items:center;gap:8px;padding:0 14px;
+    border-bottom:1px solid var(--line);background:#0b1322}
+  #graphbar .lab{color:var(--dim);font-size:11px}
+  #graphwrap{overflow:auto;background:radial-gradient(ellipse at 30% 20%,#0e1830,#080d18 70%)}
+  svg#graph{display:block}
+
+  .edge{fill:none;stroke:#3a4a68;stroke-width:1.4}
+  .elabel{fill:#7b8aa8;font-size:10px}
+  .node rect{fill:#111a2e;stroke-width:1.3;transition:.2s}
+  .node .nid{fill:#e6edf7;font-size:11.5px;font-weight:600}
+  .node .ntype{fill:#8b9bb8;font-size:9.5px}
+  .node.visited rect{fill:#16233c}
+  .node.active rect{stroke-width:3;stroke:#fff;fill:#1d3055;
+    filter:drop-shadow(0 0 10px rgba(120,180,255,.75))}
+  .node.active .nid{fill:#fff}
+  .node[data-st="veto"].active rect{stroke:#d8b4fe;filter:drop-shadow(0 0 12px rgba(168,85,247,.9))}
+  .node[data-st="error"].active rect{stroke:#fca5a5;filter:drop-shadow(0 0 12px rgba(239,68,68,.9))}
+
+  #result{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:8px 14px;border-top:1px solid var(--line);min-height:42px;background:#0b1322}
+  #result .kv{color:var(--dim);font-size:11.5px}
+  #result .kv b{color:var(--txt);font-weight:600}
+  .pill{padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600}
+  .pill.ok{background:rgba(34,197,94,.16);color:#4ade80}
+  .pill.bad{background:rgba(239,68,68,.16);color:#fca5a5}
+  .fail{color:#fca5a5;font-size:11px;background:rgba(239,68,68,.08);
+    padding:2px 8px;border-radius:6px}
+
+  #tracewrap{overflow:auto;border-top:1px solid var(--line);background:#080d18}
+  table{width:100%;border-collapse:collapse;font-size:11.5px}
+  thead th{position:sticky;top:0;background:#0d1526;color:var(--dim);font-weight:600;
+    text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);z-index:1;white-space:nowrap}
+  tbody td{padding:6px 10px;border-bottom:1px solid #16203a;vertical-align:top}
+  tbody tr:hover{background:#0f1830}
+  .num{color:#4a5a78;font-family:ui-monospace,Consolas,monospace;width:38px}
+  .mono{font-family:ui-monospace,Consolas,monospace;color:#9fb4d8}
+  .sum{color:#c3cfe3;line-height:1.45}
+  .badge{padding:1px 7px;border-radius:5px;font-size:10px;font-weight:600}
+  .b-ok{background:rgba(34,197,94,.14);color:#4ade80}
+  .b-veto{background:rgba(168,85,247,.18);color:#d8b4fe}
+  .b-error{background:rgba(239,68,68,.16);color:#fca5a5}
+  .b-cancel{background:rgba(245,158,11,.16);color:#fcd34d}
+  tr.st-veto .sum{color:#d8b4fe}
+  tr.st-error .sum{color:#fca5a5}
+  .empty{color:var(--dim);text-align:center;padding:26px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">FallGuard <span>Harness</span></div>
+  <div class="sub">多智能体编排 · 调度 · 执行 · 验证</div>
+  <div class="grow"></div>
+  <span id="wftabs" style="display:flex;gap:6px"></span>
+  <label class="chk"><input type="checkbox" id="pace" checked /> 演示节奏</label>
+  <button onclick="stopRun()">中断</button>
+</header>
+
+<main>
+  <aside id="side"></aside>
+  <section id="stage">
+    <div id="graphbar">
+      <span class="lab" id="wflabel">工作流</span>
+      <span class="lab" id="legend"></span>
+    </div>
+    <div id="graphwrap"><svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div id="result"><span class="kv">点击左侧场景运行</span></div>
+    <div id="tracewrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>节点</th><th>类型</th><th>角色</th><th>状态</th><th>摘要</th>
+        </tr></thead>
+        <tbody id="tracebody"><tr><td colspan="6" class="empty">还没有执行记录</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const TYPE_COLOR = {
+  input:"#64748b", agent:"#3b82f6", tool:"#06b6d4", condition:"#f59e0b",
+  parallel:"#22c55e", foreach:"#a855f7", wait:"#f97316", knowledge:"#14b8a6",
+  transform:"#94a3b8", end:"#ef4444"
+};
+const STATUS_CN = { ok:"完成", veto:"否决", error:"错误", cancel:"撤销" };
+
+const S = { packs:[], pack:null, wf:"", runId:null, since:0, polling:false,
+            nodeEls:{}, visited:new Set() };
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function jget(u){ const r = await fetch(u); return r.json(); }
+async function jpost(u,b){ const r = await fetch(u,{method:"POST",
+  headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})}); return r.json(); }
+
+/* ------------------------------------------------ 初始化 */
+async function boot(){
+  S.packs = await jget("/api/packs");
+  if(S.packs.length) await selectPack(S.packs[0].id);
+  else $("side").innerHTML = '<div class="empty">没有找到 pack</div>';
+}
+
+async function selectPack(id){
+  S.pack = await jget("/api/pack?id=" + encodeURIComponent(id));
+  S.wf = S.pack.default_workflow;
+  S.runId = null; S.since = 0; S.visited = new Set(); S.nodeEls = {};
+  renderSide(); renderWfTabs(); renderGraph(); resetTrace();
+  $("wflabel").textContent = S.pack.name + " · " + S.wf;
+  $("result").innerHTML = '<span class="kv">点击左侧场景运行</span>';
+}
+
+function renderSide(){
+  const packs = S.packs.map(p => `
+    <div class="pack ${S.pack && S.pack.id===p.id ? "on":""}" onclick="selectPack('${p.id}')">
+      <div class="pname">${esc(p.name)}</div>
+      <div class="pmeta">${p.agents} agents · ${p.tools} tools · ${p.scenarios.length} 场景</div>
+    </div>`).join("");
+  const scens = S.pack ? S.pack.scenarios.map(s => `
+    <div class="scen" onclick="runScenario('${s.id}')">
+      <span class="sid">${esc(s.id)}</span>${esc(s.title)}
+    </div>`).join("") : "";
+  $("side").innerHTML = packs + '<div class="sect">场景（点击运行）</div>' + scens;
+}
+
+function renderWfTabs(){
+  $("wftabs").innerHTML = Object.keys(S.pack.workflows).map(n =>
+    `<button class="${n===S.wf?"on":""}" onclick="setWf('${n}')">${esc(n)}</button>`).join("");
+}
+
+function setWf(n){
+  S.wf = n; S.nodeEls = {}; S.visited = new Set(); S.runId = null;
+  renderWfTabs(); renderGraph(); resetTrace();
+  $("wflabel").textContent = S.pack.name + " · " + n;
+}
+
+/* ------------------------------------------------ 图 */
+function edgePath(a,b){
+  const x1=a.x+a.w, y1=a.y+a.h/2, x2=b.x, y2=b.y+b.h/2;
+  if(x2 > x1 + 8){
+    const dx = Math.max(46,(x2-x1)*0.5);
+    return `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`;
+  }
+  const dy = 62;
+  return `M${x1},${y1} C${x1+95},${y1+dy} ${x2-95},${y2+dy} ${x2},${y2}`;
+}
+
+function renderGraph(){
+  const svg = $("graph");
+  svg.innerHTML = "";
+  S.nodeEls = {};
+  const wf = S.pack.workflows[S.wf];
+  if(!wf) return;
+
+  const pad = 46;
+  svg.setAttribute("viewBox", `${-pad} ${-pad} ${wf.width+pad*2} ${wf.height+pad*2}`);
+  svg.setAttribute("width", wf.width + pad*2);
+  svg.setAttribute("height", Math.max(wf.height + pad*2, 300));
+  svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+
+  const defs = document.createElementNS(NS,"defs");
+  defs.innerHTML = '<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" ' +
+    'markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
+    '<path d="M0,0 L10,5 L0,10 z" fill="#4b5b78"/></marker>';
+  svg.appendChild(defs);
+
+  const pos = {};
+  wf.nodes.forEach(n => { pos[n.id] = n; });
+
+  wf.edges.forEach(e => {
+    const a = pos[e.from], b = pos[e.to];
+    if(!a || !b) return;
+    const p = document.createElementNS(NS,"path");
+    p.setAttribute("d", edgePath(a,b));
+    p.setAttribute("class","edge");
+    p.setAttribute("marker-end","url(#arrow)");
+    svg.appendChild(p);
+    if(e.label){
+      const t = document.createElementNS(NS,"text");
+      t.setAttribute("x", (a.x+a.w+b.x)/2);
+      t.setAttribute("y", (a.y+b.y)/2 + 12);
+      t.setAttribute("text-anchor","middle");
+      t.setAttribute("class","elabel");
+      t.textContent = e.label;
+      svg.appendChild(t);
+    }
+  });
+
+  wf.nodes.forEach(n => {
+    const g = document.createElementNS(NS,"g");
+    g.setAttribute("class","node");
+    g.dataset.id = n.id;
+
+    const r = document.createElementNS(NS,"rect");
+    r.setAttribute("x",n.x); r.setAttribute("y",n.y);
+    r.setAttribute("width",n.w); r.setAttribute("height",n.h);
+    r.setAttribute("rx",10);
+    r.setAttribute("stroke", TYPE_COLOR[n.type] || "#64748b");
+    if(n.entry) r.setAttribute("stroke-width","2.2");
+    g.appendChild(r);
+
+    const t1 = document.createElementNS(NS,"text");
+    t1.setAttribute("x", n.x+12); t1.setAttribute("y", n.y+24);
+    t1.setAttribute("class","nid");
+    t1.textContent = n.id.length > 16 ? n.id.slice(0,15)+"…" : n.id;
+    g.appendChild(t1);
+
+    const t2 = document.createElementNS(NS,"text");
+    t2.setAttribute("x", n.x+12); t2.setAttribute("y", n.y+40);
+    t2.setAttribute("class","ntype");
+    t2.textContent = n.type + (n.actor ? " · "+n.actor : "");
+    g.appendChild(t2);
+
+    const tip = document.createElementNS(NS,"title");
+    tip.textContent = `${n.id} (${n.type})\n${n.summary||""}`;
+    g.appendChild(tip);
+
+    svg.appendChild(g);
+    S.nodeEls[n.id] = g;
+  });
+
+  const named = Object.entries(TYPE_COLOR)
+    .filter(([k]) => wf.nodes.some(n => n.type===k));
+  $("legend").innerHTML = named.map(([k,c]) =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px">
+      <i style="width:8px;height:8px;border-radius:2px;background:${c};display:inline-block"></i>${k}
+    </span>`).join("");
+}
+
+/* ------------------------------------------------ 运行 */
+function resetTrace(){
+  $("tracebody").innerHTML = '<tr><td colspan="6" class="empty">还没有执行记录</td></tr>';
+}
+
+async function runScenario(sid){
+  resetTrace();
+  Object.values(S.nodeEls).forEach(g => { g.classList.remove("active","visited"); delete g.dataset.st; });
+  S.visited = new Set(); S.since = 0;
+  const pace = $("pace").checked ? 380 : 0;
+  const r = await jpost("/api/run", {pack:S.pack.id, scenario:sid, workflow:S.wf, pace_ms:pace});
+  if(!r.run_id){ $("result").innerHTML = '<span class="fail">启动失败</span>'; return; }
+  S.runId = r.run_id; S.polling = true;
+  $("result").innerHTML = '<span class="kv">运行中…</span>';
+  poll();
+}
+
+async function stopRun(){
+  if(S.runId) await jpost("/api/cancel", {run_id:S.runId});
+}
+
+async function poll(){
+  if(!S.polling || !S.runId) return;
+  const r = await jget(`/api/run?id=${S.runId}&since=${S.since}`);
+  if(r.error && r.status!=="running"){ finish(r); return; }
+  (r.steps||[]).forEach(st => { appendStep(st); activate(st.node, st.status); });
+  S.since = r.total_steps || 0;
+  if(r.status === "running") setTimeout(poll, 110);
+  else finish(r);
+}
+
+function finish(r){
+  S.polling = false;
+  $("tracebody").querySelectorAll(".empty").forEach(e => e.remove());
+  const res = r.result || {};
+  const fails = (res.expect && res.expect.fails) || [];
+  const ok = res.expect && res.expect.pass;
+  const badge = r.status==="error"
+    ? '<span class="pill bad">执行错误</span>'
+    : (ok ? '<span class="pill ok">断言通过</span>' : '<span class="pill bad">断言未通过</span>');
+  $("result").innerHTML =
+    badge +
+    `<span class="kv">结局 <b>${esc(res.final || "—")}</b></span>` +
+    `<span class="kv">仿真耗时 <b>${((res.sim_ms||0)/1000).toFixed(1)}s</b></span>` +
+    `<span class="kv">节点步数 <b>${r.total_steps}</b></span>` +
+    (r.error ? `<span class="fail">${esc(r.error)}</span>` : "") +
+    fails.map(f => `<span class="fail">${esc(f)}</span>`).join("");
+}
+
+function appendStep(st){
+  const tb = $("tracebody");
+  tb.querySelectorAll(".empty").forEach(e => e.remove());
+  const tr = document.createElement("tr");
+  tr.className = "st-" + st.status;
+  tr.innerHTML =
+    `<td class="num">${st.seq}</td>` +
+    `<td class="mono">${esc(st.node)}</td>` +
+    `<td>${esc(st.type)}</td>` +
+    `<td>${esc(st.actor || "—")}</td>` +
+    `<td><span class="badge b-${st.status}">${STATUS_CN[st.status]||st.status}</span></td>` +
+    `<td class="sum">${esc(st.summary)}</td>`;
+  tb.appendChild(tr);
+  const wrap = $("tracewrap");
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function activate(nodeId, status){
+  Object.values(S.nodeEls).forEach(g => g.classList.remove("active"));
+  const g = S.nodeEls[nodeId];
+  if(!g) return;
+  S.visited.add(nodeId);
+  Object.entries(S.nodeEls).forEach(([id, el]) => {
+    if(S.visited.has(id)) el.classList.add("visited");
+  });
+  g.classList.add("active");
+  if(status === "veto" || status === "error") g.dataset.st = status;
+}
+
+boot();
+</script>
+</body>
+</html>

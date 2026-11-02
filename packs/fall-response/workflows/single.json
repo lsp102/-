@@ -1,0 +1,53 @@
+{
+  "id": "single",
+  "name": "单 Agent 基线（对照组）",
+  "entry": "receive",
+  "nodes": {
+    "receive": { "type": "input", "next": "baseline_triage" },
+    "baseline_triage": {
+      "type": "agent",
+      "actor": "single",
+      "agent": "baseline_triage",
+      "input": { "profile": "profile" },
+      "out": "triage",
+      "next": "s_draft"
+    },
+    "s_draft": {
+      "type": "agent",
+      "actor": "single",
+      "agent": "contact",
+      "input": { "name": "profile.name", "level": "ctx.triage.level" },
+      "out": "draft",
+      "next": "s_push"
+    },
+    "s_push": {
+      "type": "tool",
+      "actor": "single",
+      "agent": "contact",
+      "tool": "push",
+      "args": { "text": "ctx.draft.text" },
+      "out": "pushed",
+      "next": "s_call"
+    },
+    "s_call": {
+      "type": "agent",
+      "actor": "single",
+      "agent": "contact_first",
+      "input": {
+        "contact": "ctx.triage.contacts[0]",
+        "answer": "get(params, 'answer', [])",
+        "ring": "params.ring_timeout_s"
+      },
+      "out": "call",
+      "next": "s_gate"
+    },
+    "s_gate": {
+      "type": "condition",
+      "when": "ctx.call.answered",
+      "then": "end_answered",
+      "else": "end_no_answer"
+    },
+    "end_answered": { "type": "end", "status": "answered" },
+    "end_no_answer": { "type": "end", "status": "no_answer" }
+  }
+}

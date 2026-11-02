@@ -1,0 +1,19 @@
+[
+  {
+    "id": "r1",
+    "title": "三路并行检索 → 汇合 → 校验通过",
+    "event": { "topic": "社区养老", "force_fail": false },
+    "expect": {
+      "final": "ok",
+      "ctx.merged": ["政策：社区养老服务补贴", "政策：智慧健康监测试点", "数据：独居老人占比 14.2%", "案例：某市跌倒报警试点"],
+      "ctx.check.ok": true,
+      "trace.node:fanout": 1
+    }
+  },
+  {
+    "id": "r2",
+    "title": "校验不通过 → 降级交付",
+    "event": { "topic": "社区养老", "force_fail": true },
+    "expect": { "final": "partial", "ctx.check.ok": false }
+  }
+]

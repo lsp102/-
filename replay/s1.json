@@ -1,0 +1,19 @@
+{
+  "id": "s1",
+  "title": "真实跌倒 · 家属接听",
+  "note": "普通老人（与子女同住），一次外呼即接通",
+  "elder_id": "e003",
+  "source": "phone_sensor",
+  "confidence": 0.93,
+  "base_level": "mid",
+  "flags": { "answer": [true], "answer_at": [8] },
+  "expect": {
+    "level": "mid",
+    "forbid_move": false,
+    "guard": false,
+    "escalated": 0,
+    "outcome": "ANSWERED",
+    "notified": true,
+    "merged": false
+  }
+}
