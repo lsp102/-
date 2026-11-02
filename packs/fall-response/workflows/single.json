@@ -27,7 +27,13 @@
       "tool": "push",
       "args": { "text": "ctx.draft.text" },
       "out": "pushed",
-      "next": "s_call"
+      "next": "s_check_contacts"
+    },
+    "s_check_contacts": {
+      "type": "condition",
+      "when": "len(ctx.triage.contacts) > 0",
+      "then": "s_call",
+      "else": "end_no_contact"
     },
     "s_call": {
       "type": "agent",
@@ -48,6 +54,7 @@
       "else": "end_no_answer"
     },
     "end_answered": { "type": "end", "status": "answered" },
-    "end_no_answer": { "type": "end", "status": "no_answer" }
+    "end_no_answer": { "type": "end", "status": "no_answer" },
+    "end_no_contact": { "type": "end", "status": "no_contact" }
   }
 }
