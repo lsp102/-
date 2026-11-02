@@ -1,0 +1,21 @@
+# 镜像里不需要的东西：代码仓库元数据、缓存、测试、本地产物
+.git
+.github
+.gitignore
+.gitattributes
+.dockerignore
+Dockerfile
+
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.venv
+venv
+env
+
+tests/
+results.csv
+*.log
+_tmp/
+scratch/
+*.zip

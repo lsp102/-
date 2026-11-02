@@ -26,7 +26,52 @@
       "type": "condition",
       "when": "ctx.dup.found",
       "then": "end_merged",
+      "else": "verify"
+    },
+    "verify": {
+      "type": "agent",
+      "actor": "verifier",
+      "agent": "verifier",
+      "input": { "profile": "profile", "event": "event" },
+      "out": "verify",
+      "next": "gate_fall"
+    },
+    "gate_fall": {
+      "type": "condition",
+      "when": "ctx.verify.verdict == 'negligible'",
+      "then": "end_no_fall",
+      "else": "remember"
+    },
+    "remember": {
+      "type": "memory",
+      "actor": "supervisor",
+      "op": "incr",
+      "key_expr": "'falls:' + profile.elder_id + ':' + ctx.verify.verdict",
+      "out": "mem_falls",
+      "next": "note"
+    },
+    "note": {
+      "type": "memory",
+      "actor": "supervisor",
+      "op": "set",
+      "key": "session:last_verdict",
+      "value_expr": "ctx.verify.verdict",
+      "persist": false,
+      "out": "mem_last_verdict",
+      "next": "voice_gate"
+    },
+    "voice_gate": {
+      "type": "condition",
+      "when": "ctx.verify.needs_voice",
+      "then": "voice_check",
       "else": "triage"
+    },
+    "voice_check": {
+      "type": "wait",
+      "actor": "verifier",
+      "duration": "ctx.verify.voice_wait_s",
+      "on_cancel": "end_false_alarm",
+      "next": "triage"
     },
     "triage": {
       "type": "agent",
@@ -48,7 +93,7 @@
       "type": "agent",
       "actor": "contact",
       "agent": "contact",
-      "input": { "name": "profile.name", "level": "ctx.triage.level" },
+      "input": { "name": "profile.name", "level": "ctx.triage.level", "refs": "ctx.hits" },
       "out": "draft",
       "next": "guard"
     },
@@ -91,8 +136,8 @@
       "actor": "escalate",
       "over": "ctx.triage.contacts",
       "body": "call_one",
-      "break_when": "ctx.call.answered",
-      "on_break": "end_answered",
+      "break_when": "ctx.call.answered or ctx.call.budget_hit",
+      "on_break": "gate_call",
       "on_exhausted": "page_community",
       "max": 5
     },
@@ -102,13 +147,20 @@
       "agent": "contact_call",
       "input": {
         "contact": "item",
-        "ring": "params.ring_timeout_s",
+        "ring": "ctx.verify.ring_s",
+        "budget": "ctx.verify.budget_s",
         "answer": "get(params, 'answer', [])",
         "answer_at": "get(params, 'answer_at', [])",
         "index": "ctx.index"
       },
       "out": "call",
       "next": null
+    },
+    "gate_call": {
+      "type": "condition",
+      "when": "ctx.call.answered",
+      "then": "end_answered",
+      "else": "page_community"
     },
     "page_community": {
       "type": "tool",
@@ -130,6 +182,8 @@
     "end_community_120": { "type": "end", "status": "community_120" },
     "end_merged": { "type": "end", "status": "merged" },
     "end_cancelled": { "type": "end", "status": "cancelled" },
+    "end_false_alarm": { "type": "end", "status": "false_alarm" },
+    "end_no_fall": { "type": "end", "status": "no_fall" },
     "end_push_failed": { "type": "end", "status": "push_failed" },
     "end_low_confidence": { "type": "end", "status": "discarded" }
   }

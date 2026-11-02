@@ -1,0 +1,29 @@
+﻿[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# 这个项目是“仓库内直接运行”的，不通过 pip 分发：
+# packs/ 是运行时数据，必须留在仓库里。本文件的存在意义是
+# 把版本号、Python 版本要求、许可这些元信息收敛到一处，供 CI 与工具读取。
+[project]
+name = "fallguard-harness"
+version = "0.4.0"
+description = "面向多智能体协作的编排、调度、执行与验证平台（scenario pack 驱动）"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "FallGuard Team" }]
+keywords = ["multi-agent", "workflow", "orchestration", "harness", "scenario-pack"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = []
+
+[tool.setuptools]
+packages = ["harness"]

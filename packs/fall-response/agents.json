@@ -1,5 +1,12 @@
 {
   "agents": {
+    "verifier": {
+      "name": "跌倒核验",
+      "driver": "handler",
+      "handler": "verify",
+      "permissions": ["read_profile", "score_fall"],
+      "tools": []
+    },
     "triage": {
       "name": "分诊",
       "driver": "handler",

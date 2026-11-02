@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+import hmac
 import os
 import sys
 import threading
@@ -28,12 +29,15 @@ BASE = Path(__file__).resolve().parent.parent
 if str(BASE) not in sys.path:
     sys.path.insert(0, str(BASE))
 
-from harness.engine import Engine, check_expect      # noqa: E402
+from harness.engine import check_expect              # noqa: E402
 from harness.graph import build as build_graph       # noqa: E402
 from harness.pack import discover, load_pack         # noqa: E402
+from harness.runner import run_scenario              # noqa: E402
 
 PACKS_DIR = BASE / "packs"
 MAX_RUNS = 80
+# 可选访问令牌：设置 HARNESS_TOKEN 后，/api/* 需要带 X-Harness-Token 头或 ?token=
+TOKEN = os.environ.get("HARNESS_TOKEN", "")
 
 
 class Run:
@@ -91,9 +95,10 @@ def _remember(run: Run):
 
 def _execute(run: Run, pack, scenario: dict, workflow: str, pace_ms: int):
     try:
-        eng = Engine(pack, params={"pace_ms": pace_ms}, on_step=run.add)
+        # 走统一执行器：控制台以前绕过了 runner，导致 s4 不撤销、s8 不去重
+        res, eng = run_scenario(pack, scenario, workflow=workflow,
+                                pace_ms=pace_ms, on_step=run.add)
         run.engine = eng
-        res = eng.run(scenario, workflow=workflow)
         fails = check_expect(res, run.expect)
         run.result = {
             "final": res.final,
@@ -102,6 +107,8 @@ def _execute(run: Run, pack, scenario: dict, workflow: str, pace_ms: int):
             "ctx_keys": sorted(res.ctx.keys()),
             "expect": {"pass": (not fails) and not res.error, "fails": fails},
             "trace_summary": res.trace.summary() if res.trace else {},
+            # 跌倒核验的结构化结果，前端拿它画评分卡（不再从轨迹摘要里猜）
+            "verify": res.ctx.get("verify"),
         }
         run.status = "done" if not res.error else "error"
     except Exception as e:  # noqa: BLE001
@@ -140,6 +147,12 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------------------------------------------------------------- GET
 
+    def _authorized(self, q: dict) -> bool:
+        if not TOKEN:
+            return True
+        got = self.headers.get("X-Harness-Token") or (q.get("token", [""])[0])
+        return hmac.compare_digest(str(got), TOKEN)
+
     def do_GET(self):
         u = urlparse(self.path)
         q = parse_qs(u.query)
@@ -148,13 +161,12 @@ class Handler(BaseHTTPRequestHandler):
             html = (BASE / "web" / "index.html").read_text(encoding="utf-8")
             return self._send(200, html, "text/html")
 
+        if u.path.startswith("/api/") and not self._authorized(q):
+            return self._json({"error": "unauthorized"}, 401)
+
         if u.path == "/api/packs":
             out = []
-            for d in discover(PACKS_DIR):
-                try:
-                    p = load_pack(d)
-                except Exception:
-                    continue
+            for p in _all_packs():
                 out.append({
                     "id": p.id, "name": p.name,
                     "workflows": list(p.workflows),
@@ -210,6 +222,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         u = urlparse(self.path)
+        q = parse_qs(u.query)
+        if u.path.startswith("/api/") and not self._authorized(q):
+            return self._json({"error": "unauthorized"}, 401)
         b = self._body()
 
         if u.path == "/api/run":
@@ -244,15 +259,23 @@ class Handler(BaseHTTPRequestHandler):
 _PACK_CACHE: dict[str, object] = {}
 
 
+def _all_packs() -> list:
+    """pack 加载本身按 mtime 缓存（harness.pack），这里只做 id → Pack 索引。"""
+    out = []
+    for d in discover(PACKS_DIR):
+        try:
+            out.append(load_pack(d))
+        except Exception:
+            continue
+    for p in out:
+        _PACK_CACHE[p.id] = p
+    return out
+
+
 def _find_pack(pid: str):
     if pid in _PACK_CACHE:
         return _PACK_CACHE[pid]
-    for d in discover(PACKS_DIR):
-        try:
-            p = load_pack(d)
-        except Exception:
-            continue
-        _PACK_CACHE[p.id] = p
+    _all_packs()
     return _PACK_CACHE.get(pid)
 
 

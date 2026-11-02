@@ -16,12 +16,22 @@ def event_dedupe(rt, elder_id: str = ""):
     return {"found": found, "prev_seq": prev, "seq": seq}
 
 
+PUSH_RETRY_BUDGET_MS = 3000     # 退避重试的时间预算，超出即判定彻底失败
+
+
 def push(rt, text: str = ""):
     p = rt.params
     down_ms = float(p.get("network_down_ms") or 0)
     primary_down = bool(p.get("primary_down"))
+    force_fail = bool(p.get("push_fail"))
 
     rt.add_latency(int(p.get("push_ms") or 200))
+    # 以前无论断多久都返回 ok=True，导致 gate_push 的失败分支是死代码。
+    # 现在超过重试预算（或用 push_fail 显式注入）会真的失败。
+    if force_fail or down_ms > PUSH_RETRY_BUDGET_MS:
+        rt.add_latency(int(min(down_ms or PUSH_RETRY_BUDGET_MS, PUSH_RETRY_BUDGET_MS)))
+        return {"ok": False, "channel": "none", "attempts": 3,
+                "degraded": True, "text": text}
     if down_ms:
         rt.add_latency(int(down_ms))          # 退避重试的时间成本
     if primary_down:

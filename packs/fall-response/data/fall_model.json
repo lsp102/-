@@ -1,0 +1,45 @@
+{
+  "desc": "跌倒核验模型：多信号加权评分 + 硬否决 + 分级升级策略。全部可调，不含魔法数字。",
+  "weights": {
+    "impact": 0.28,
+    "freefall": 0.22,
+    "still": 0.20,
+    "orientation": 0.10,
+    "confidence": 0.20
+  },
+  "norms": {
+    "impact_g": 6.0,
+    "freefall_ms": 300,
+    "still_ms": 5000,
+    "orientation_deg": 60
+  },
+  "thresholds": {
+    "confirmed": 0.85,
+    "likely": 0.70,
+    "suspected": 0.50
+  },
+  "hard_negatives": [
+    {
+      "id": "PHONE_DROP",
+      "desc": "手机/物品掉落：有冲击峰值，但没有失重过程、几乎无静止",
+      "when": { "impact_g_gte": 3.0, "freefall_ms_lt": 60, "still_ms_lt": 800 }
+    },
+    {
+      "id": "SIT_DOWN",
+      "desc": "坐下/靠坐：冲击温和、姿态变化小、静止时间短",
+      "when": { "impact_g_lt": 2.0, "orientation_deg_lt": 25, "still_ms_lt": 1500 }
+    }
+  ],
+  "escalation": {
+    "confirmed": { "ring_s": 13, "budget_s": 20 },
+    "likely": { "ring_s": 15, "budget_s": 22 },
+    "suspected": { "ring_s": 18, "budget_s": 25 },
+    "negligible": { "ring_s": 30, "budget_s": 30 }
+  },
+  "voice": { "suspected_wait_s": 3.0, "low_confidence_below": 0.80 },
+  "safety_bias": {
+    "medications_any": ["华法林", "利伐沙班", "阿哌沙班", "达比加群", "氯吡格雷", "阿司匹林"],
+    "upgrade_to": "confirmed",
+    "from": ["likely", "suspected"]
+  }
+}

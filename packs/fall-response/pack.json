@@ -14,5 +14,11 @@
     "ring_timeout_s": 30.0,
     "answer_ring_s": 6.0,
     "push_ms": 200
+  },
+  "memory": {
+    "desc": "只把“每位老人确认/疑似跌倒的次数”持久化；其余键仅留在进程内",
+    "mode": "declared",
+    "allow": ["falls:*"],
+    "deny": ["falls:debug:*"]
   }
 }

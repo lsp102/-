@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: 单元测试（engine / pack / runner / audit / expr / knowledge / graph / lessons）
+        run: python -m unittest discover -s tests -v
+
+      - name: 场景验证 · 全部通过
+        run: |
+          python -m harness.cli validate fall-response
+          python -m harness.cli validate research-brief
+
+      - name: 对照组必须仍然失败（4/13，这是对照实验的说服力来源）
+        run: |
+          if python -m harness.cli validate fall-response --workflow single; then
+            echo "::error::单 Agent 对照组不应全部通过，对照实验失去意义"
+            exit 1
+          fi
+
+      - name: 静态体检（死规则 / 不可达节点 / 权限缺声明）
+        run: python -m harness.cli audit fall-response
+
+      - name: 版本号必须与 pyproject 一致
+        run: python -c "import re,pathlib,harness; v=re.search(r'^version\s*=\s*\"([^\"]+)\"', pathlib.Path('pyproject.toml').read_text(encoding='utf-8'), re.M).group(1); assert harness.__version__==v, (harness.__version__, v); print('version', v)"

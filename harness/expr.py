@@ -7,8 +7,16 @@
 from __future__ import annotations
 
 import ast
+import threading
 
 MAX_DEPTH = 32
+
+# 编译缓存：同一段表达式源码在任何上下文里编译结果都一样，
+# 所以放模块级共享。以前 Evaluator 每个 run 都新建，缓存随之全废，
+# 5600 次求值触发了 39400 次 ast.walk（剖析数据）。
+_PARSE_CACHE: dict[str, ast.Expression] = {}
+_PARSE_LOCK = threading.Lock()
+_PARSE_CACHE_MAX = 2000
 
 
 class ExprError(Exception):
@@ -55,6 +63,25 @@ def _attr(obj, name: str):
     raise ExprError(f"无法读取属性: {name}")
 
 
+def _compile(src: str) -> ast.Expression:
+    """解析 + 白名单校验，结果进模块级缓存。"""
+    node = _PARSE_CACHE.get(src)
+    if node is not None:
+        return node
+    try:
+        node = ast.parse(src, mode="eval")
+    except SyntaxError as e:
+        raise ExprError(f"表达式语法错误: {src}") from e
+    for n in ast.walk(node):
+        if type(n) not in _ALLOWED_NODES:
+            raise ExprError(f"不允许的语法 {type(n).__name__}: {src}")
+    with _PARSE_LOCK:
+        if len(_PARSE_CACHE) >= _PARSE_CACHE_MAX:
+            _PARSE_CACHE.clear()
+        _PARSE_CACHE[src] = node
+    return node
+
+
 class Evaluator:
     """names 提供可引用的顶层变量（如 ctx / event / profile / params）。"""
 
@@ -76,13 +103,7 @@ class Evaluator:
             return None
         node = self._cache.get(src)
         if node is None:
-            try:
-                node = ast.parse(src, mode="eval")
-            except SyntaxError as e:
-                raise ExprError(f"表达式语法错误: {src}") from e
-            for n in ast.walk(node):
-                if type(n) not in _ALLOWED_NODES:
-                    raise ExprError(f"不允许的语法 {type(n).__name__}: {src}")
+            node = _compile(src)
             self._cache[src] = node
         return self._ev(node.body, 0)
 

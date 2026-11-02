@@ -22,11 +22,15 @@ def _grams(s: str) -> set[str]:
     return {s[i:i + 2] for i in range(len(s) - 1)}
 
 
-def _score(query: str, text: str) -> float:
-    qg, tg = _grams(query), _grams(text)
+def _score2(qg: set[str], tg: set[str]) -> float:
+    """已经算好二元组时的打分（知识源在加载期就把正文的 grams 缓存下来）。"""
     if not qg or not tg:
         return 0.0
     return len(qg & tg) / (len(qg) ** 0.5 * len(tg) ** 0.5 + 1e-6)
+
+
+def _score(query: str, text: str) -> float:
+    return _score2(_grams(query), _grams(text))
 
 
 class KnowledgeSource(ABC):
@@ -64,14 +68,19 @@ class RuleKnowledge(KnowledgeSource):
     def __init__(self, rules: list[dict]):
         super().__init__("规则库")
         self.rules = rules
-
-    def search(self, query: str, k: int = 3) -> list[dict]:
-        out = []
-        for r in self.rules:
+        # 正文的二元组在加载期算一次（以前每次检索都重算）
+        self._idx: list[tuple[dict, str, set[str]]] = []
+        for r in rules:
             then = r.get("then", {})
             text = (r.get("desc", "") + " " + " ".join(then.get("plan_add", []))
                     + " " + str(then.get("rationale", "")))
-            s = _score(query, text)
+            self._idx.append((r, text, _grams(text)))
+
+    def search(self, query: str, k: int = 3) -> list[dict]:
+        qg = _grams(query)
+        out = []
+        for r, text, tg in self._idx:
+            s = _score2(qg, tg)
             if s > 0.01:
                 out.append(self._hit(r["id"], r.get("desc", r["id"]), text, s))
         out.sort(key=lambda x: -x["score"])
@@ -88,10 +97,12 @@ class DocKnowledge(KnowledgeSource):
         super().__init__(name)
         self.dir = Path(directory) if directory else None
         self.chunks: list[dict] = []
+        self._idx: list[tuple[dict, set[str]]] = []
         self.reload()
 
     def reload(self):
         self.chunks = []
+        self._idx = []
         if not self.dir or not self.dir.exists():
             return
         for p in sorted(self.dir.glob("*.md")):
@@ -102,13 +113,16 @@ class DocKnowledge(KnowledgeSource):
                 title = lines[0].strip()
                 body = "\n".join(lines[1:]).strip()
                 if body:
-                    self.chunks.append({"id": f"{p.stem}#{i}", "title": title,
-                                        "text": body, "doc": p.stem})
+                    chunk = {"id": f"{p.stem}#{i}", "title": title,
+                             "text": body, "doc": p.stem}
+                    self.chunks.append(chunk)
+                    self._idx.append((chunk, _grams(title + " " + body)))
 
     def search(self, query: str, k: int = 3) -> list[dict]:
+        qg = _grams(query)
         out = []
-        for c in self.chunks:
-            s = _score(query, c["title"] + " " + c["text"])
+        for c, tg in self._idx:
+            s = _score2(qg, tg)
             if s > 0.01:
                 out.append(self._hit(c["id"], c["title"], c["text"], s, {"doc": c["doc"]}))
         out.sort(key=lambda x: -x["score"])
@@ -125,21 +139,31 @@ class CaseKnowledge(KnowledgeSource):
         super().__init__("经验库")
         self.path = Path(path) if path else None
         self.items: list[dict] = list(items or [])
+        self._idx: list[tuple[dict, set[str]]] = []
         if self.path is not None:
             self.reload()
+        else:
+            self._rebuild()
+
+    def _rebuild(self):
+        self._idx = [(it, _grams(str(it.get("title", "")) + " " + str(it.get("text", ""))))
+                     for it in self.items]
 
     def reload(self):
         if not self.path or not self.path.exists():
+            self._rebuild()
             return
         try:
             self.items = json.loads(self.path.read_text(encoding="utf-8")).get("lessons", [])
         except Exception:
             self.items = []
+        self._rebuild()
 
     def search(self, query: str, k: int = 3) -> list[dict]:
+        qg = _grams(query)
         out = []
-        for it in self.items:
-            s = _score(query, it.get("title", "") + " " + it.get("text", ""))
+        for it, tg in self._idx:
+            s = _score2(qg, tg)
             if s > 0.01:
                 out.append(self._hit(it.get("id", ""), it.get("title", ""),
                                      it.get("text", ""), s))

@@ -29,14 +29,14 @@
 | 轨迹层 | `trace.py` | 每个节点一条记录，UI / 断言 / 复盘统一读它 |
 | 知识层 | `knowledge.py` | 知识源注册中心（规则库 / 文档库 / 经验库） |
 | 包层 | `pack.py` | pack 发现与加载，`tools.py` / `handlers.py` 动态导入 |
-| 引擎层 | `engine.py` | 10 种节点原语 + 执行循环 + 权限校验 + 断言 |
+| 引擎层 | `engine.py` | 11 种节点原语 + 执行循环 + 权限校验 + 断言 |
 | 图层 | `graph.py` | 把 workflow.json 转成节点图（分层布局 + 边） |
 | 入口层 | `cli.py` | list / info / run / validate |
 | 服务层 | `server.py` | HTTP API + 控制台（增量轨迹推送） |
 
 ---
 
-## 3. 节点原语（编排的 10 个操作）
+## 3. 节点原语（编排的 11 个操作）
 
 | 类型 | 语义 | 关键字段 |
 |---|---|---|
@@ -48,10 +48,53 @@
 | `foreach` | 遍历 + 中断条件（升级链 / 重试链） | `over` `body` `break_when` `on_break` `on_exhausted` `max` |
 | `wait` | 可取消等待（人工确认窗口 / 超时） | `duration` `on_cancel` `next` |
 | `knowledge` | 知识库检索 | `query` `k` `out` |
+| `memory` | **跨运行的持久记忆**（读写落盘状态） | `op` `key`/`key_expr` `value`/`value_expr` `by` `out` |
 | `transform` | 写入上下文 | `set{}` `next` |
 | `end` | 终止并标记最终状态 | `status` |
 
 每个节点都可以带 `actor`（写进轨迹，用于断言与展示）和 `on_error`（错误转移）。
+
+### `memory` 节点
+
+`ctx` 每个 run 重建、`shared` 只活在同一个 Engine 里，重启即失忆。
+`memory` 补上这一层：一个 pack 一份 JSON（默认 `.harness_state/<pack-id>.json`，
+可用环境变量 `HARNESS_STATE_DIR` 改位置），写入走「临时文件 + `os.replace`」保证原子。
+
+```json
+{ "type": "memory", "op": "incr",
+  "key_expr": "'falls:' + profile.elder_id + ':' + ctx.verify.verdict",
+  "out": "mem_falls", "next": "voice_gate" }
+```
+
+| op | 说明 |
+|---|---|
+| `get` | 读；`default` 兜底 |
+| `set` | 写；`value` 为字面量，`value_expr` 为表达式 |
+| `incr` | 自增；`by` 默认 1 |
+| `append` | 追加进列表；`maxlen` 默认 100 |
+| `delete` | 删除键 |
+
+**默认不落盘**：所有键都写进进程内层，只有策略允许的才持久化。策略写在 `pack.json`：
+
+```json
+"memory": {
+  "mode": "declared",
+  "allow": ["falls:*"],
+  "deny": ["falls:debug:*"]
+}
+```
+
+| mode | 含义 |
+|---|---|
+| `declared` | **只有**匹配 `allow` 且不匹配 `deny` 的键落盘（推荐） |
+| `all` | 全部落盘（未声明策略时的默认，兼容旧行为） |
+| `off` | 一个都不落盘，纯进程内 |
+
+节点上可以逐个覆盖：`"persist": true`（哪怕策略没放行也写盘）/ `"persist": false`（哪怕策略放行也不写盘）。
+轨迹摘要会标出 `（持久）` 还是 `（仅本进程）`，`audit` 也会打印当前策略。
+
+`validate` / `audit` / `dump` 跑在**临时状态目录**里，不会污染演示用的计数；
+`run` 与 HTTP 控制台才是真实持久化。handler 里也可以直接 `rt.memory.get/set/incr`。
 
 **轨迹里的 `status` 是一等公民**：`ok` / `veto` / `cancel` / `error`。
 handler 返回 `_status` 即可上报"我否决了一个动作"——护栏不是日志里的一句话，是可被断言的执行事实。
@@ -161,7 +204,7 @@ python -m harness.cli validate research-brief              # 2/2
 
 1. 建目录 `packs/<id>/`
 2. 写 `agents.json`：定义角色、权限、工具白名单
-3. 写 `workflows/<name>.json`：用 10 种节点拼图
+3. 写 `workflows/<name>.json`：用 11 种节点拼图
 4. 写 `handlers.py` / `tools.py`：领域逻辑（平台不碰）
 5. 写 `scenarios.json` + `expect`，跑 `validate`
 

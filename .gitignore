@@ -22,3 +22,6 @@ Thumbs.db
 # 本地试验
 _tmp/
 scratch/
+
+# 运行期持久记忆
+.harness_state/

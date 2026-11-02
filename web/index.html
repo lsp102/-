@@ -14,7 +14,7 @@
   html,body{height:100%}
   body{margin:0;background:var(--bg);color:var(--txt);font-size:13px;
     font-family:"Microsoft YaHei","PingFang SC",system-ui,-apple-system,sans-serif;
-    display:grid;grid-template-rows:52px 1fr;overflow:hidden}
+    display:grid;grid-template-rows:52px 1fr;grid-template-columns:minmax(0,1fr);overflow:hidden}
 
   header{display:flex;align-items:center;gap:14px;padding:0 16px;
     background:linear-gradient(90deg,#0b1322,#13224a);border-bottom:1px solid var(--line)}
@@ -28,7 +28,7 @@
   button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
   label.chk{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:5px;cursor:pointer}
 
-  main{display:grid;grid-template-columns:292px 1fr;min-height:0}
+  main{display:grid;grid-template-columns:292px minmax(0,1fr);min-height:0}
   aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:10px}
   .pack{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
     padding:9px 11px;margin-bottom:8px;cursor:pointer;transition:.15s}
@@ -43,12 +43,14 @@
   .scen .sid{color:var(--accent);font-weight:700;font-family:ui-monospace,Consolas,monospace;
     font-size:11px;margin-right:5px}
 
-  #stage{display:grid;grid-template-rows:46px 1fr auto 258px;min-height:0;min-width:0}
+  #stage{display:grid;grid-template-rows:46px 1fr auto auto 232px;min-height:0;min-width:0}
   #graphbar{display:flex;align-items:center;gap:8px;padding:0 14px;
     border-bottom:1px solid var(--line);background:#0b1322}
   #graphbar .lab{color:var(--dim);font-size:11px}
-  #graphwrap{overflow:auto;background:radial-gradient(ellipse at 30% 20%,#0e1830,#080d18 70%)}
-  svg#graph{display:block}
+  #graphwrap{overflow:auto;min-width:0;background:radial-gradient(ellipse at 30% 20%,#0e1830,#080d18 70%)}
+  /* 默认按宽度缩放到可见（可读），纵向超出部分滚动；1:1 时不缩放 */
+  svg#graph{display:block;width:100%;height:auto}
+  #graphwrap.zoom1 svg#graph{width:auto}
 
   .edge{fill:none;stroke:#3a4a68;stroke-width:1.4}
   .elabel{fill:#7b8aa8;font-size:10px}
@@ -61,6 +63,8 @@
   .node.active .nid{fill:#fff}
   .node[data-st="veto"].active rect{stroke:#d8b4fe;filter:drop-shadow(0 0 12px rgba(168,85,247,.9))}
   .node[data-st="error"].active rect{stroke:#fca5a5;filter:drop-shadow(0 0 12px rgba(239,68,68,.9))}
+  .node.fail rect{stroke:#ef4444;stroke-dasharray:5 3;stroke-width:2}
+  .edge.back{stroke:#5b4b7a;stroke-dasharray:4 3;opacity:.8}
 
   #result{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
     padding:8px 14px;border-top:1px solid var(--line);min-height:42px;background:#0b1322}
@@ -72,10 +76,29 @@
   .fail{color:#fca5a5;font-size:11px;background:rgba(239,68,68,.08);
     padding:2px 8px;border-radius:6px}
 
-  #tracewrap{overflow:auto;border-top:1px solid var(--line);background:#080d18}
-  table{width:100%;border-collapse:collapse;font-size:11.5px}
+  /* 跌倒核验评分卡 */
+  #card{display:none;gap:22px;align-items:flex-start;padding:10px 14px;
+    border-top:1px solid var(--line);background:#0b1322}
+  #card.on{display:flex;flex-wrap:wrap}
+  #card .head{display:flex;flex-direction:column;gap:5px;min-width:150px}
+  #card .vname{font-size:16px;font-weight:700;letter-spacing:.3px}
+  #card .score{color:var(--dim);font-size:11px}
+  #card .score b{color:var(--txt);font-size:13px}
+  #card .bars{display:grid;grid-template-columns:auto 132px 38px;gap:5px 9px;
+    align-items:center;font-size:11px;color:var(--dim)}
+  #card .bar{height:6px;background:#1b2942;border-radius:3px;overflow:hidden}
+  #card .bar i{display:block;height:100%;border-radius:3px;
+    background:linear-gradient(90deg,#3b82f6,#22c55e)}
+  #card .num{color:#9fb4d8;font-family:ui-monospace,Consolas,monospace;text-align:right}
+  #card .why{flex:1;min-width:260px;color:#c3cfe3;font-size:11.5px;line-height:1.65}
+  #card .why div{color:var(--dim);margin-top:2px}
+  #card .esc{display:flex;gap:14px;font-size:11.5px;color:var(--dim);white-space:nowrap}
+  #card .esc b{color:var(--txt)}
+
+  #tracewrap{overflow:auto;border-top:1px solid var(--line);background:#080d18}  table{width:100%;border-collapse:collapse;font-size:11.5px}
   thead th{position:sticky;top:0;background:#0d1526;color:var(--dim);font-weight:600;
     text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);z-index:1;white-space:nowrap}
+  thead th:first-child, tbody td:first-child{width:52px}
   tbody td{padding:6px 10px;border-bottom:1px solid #16203a;vertical-align:top}
   tbody tr:hover{background:#0f1830}
   .num{color:#4a5a78;font-family:ui-monospace,Consolas,monospace;width:38px}
@@ -99,6 +122,9 @@
   <div class="grow"></div>
   <span id="wftabs" style="display:flex;gap:6px"></span>
   <label class="chk"><input type="checkbox" id="pace" checked /> 演示节奏</label>
+  <label class="chk"><input type="checkbox" id="onlybad" onchange="refilter()" /> 只看异常</label>
+  <label class="chk"><input type="checkbox" id="zoom" onchange="toggleZoom()" /> 1:1</label>
+  <button onclick="rerun()" id="rerunbtn" disabled>重跑</button>
   <button onclick="stopRun()">中断</button>
 </header>
 
@@ -111,6 +137,7 @@
     </div>
     <div id="graphwrap"><svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg></div>
     <div id="result"><span class="kv">点击左侧场景运行</span></div>
+    <div id="card"></div>
     <div id="tracewrap">
       <table>
         <thead><tr>
@@ -130,27 +157,59 @@ const TYPE_COLOR = {
   transform:"#94a3b8", end:"#ef4444"
 };
 const STATUS_CN = { ok:"完成", veto:"否决", error:"错误", cancel:"撤销" };
+const VERDICT = {
+  confirmed:{cn:"确认跌倒", color:"#ef4444"},
+  likely:{cn:"很可能跌倒", color:"#f59e0b"},
+  suspected:{cn:"疑似跌倒", color:"#fcd34d"},
+  negligible:{cn:"判定为非跌倒", color:"#22c55e"}
+};
+const SUBS = { impact:"冲击峰值", freefall:"失重时长", still:"跌倒后静止",
+               orientation:"姿态变化", confidence:"端侧置信" };
 
 const S = { packs:[], pack:null, wf:"", runId:null, since:0, polling:false,
-            nodeEls:{}, visited:new Set() };
+            nodeEls:{}, visited:new Set(), lastScenario:null };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-async function jget(u){ const r = await fetch(u); return r.json(); }
-async function jpost(u,b){ const r = await fetch(u,{method:"POST",
-  headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})}); return r.json(); }
+function showError(msg){ $("result").innerHTML = `<span class="fail">${esc(msg)}</span>`; }
+async function jget(u){
+  try{
+    const r = await fetch(u);
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  }catch(e){ showError("接口请求失败 " + u + " — " + e.message); return null; }
+}
+async function jpost(u,b){
+  try{
+    const r = await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(b||{})});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  }catch(e){ showError("接口请求失败 " + u + " — " + e.message); return null; }
+}
 
 /* ------------------------------------------------ 初始化 */
+const Q = new URLSearchParams(location.search);
+
 async function boot(){
   S.packs = await jget("/api/packs");
-  if(S.packs.length) await selectPack(S.packs[0].id);
-  else $("side").innerHTML = '<div class="empty">没有找到 pack</div>';
+  if(!S.packs){ $("side").innerHTML = '<div class="empty">加载失败，看上方红字</div>'; return; }
+  if(!S.packs.length){ $("side").innerHTML = '<div class="empty">没有找到 pack</div>'; return; }
+  // 支持演示直链：/?pack=fall-response&run=s10&pace=0
+  const pid = Q.get("pack") || S.packs[0].id;
+  await selectPack(pid);
+  if(Q.get("pace") === "0") $("pace").checked = false;
+  const sid = Q.get("run");
+  if(sid && S.pack && S.pack.scenarios.some(s => String(s.id) === sid)) runScenario(sid);
 }
 
 async function selectPack(id){
-  S.pack = await jget("/api/pack?id=" + encodeURIComponent(id));
+  const pack = await jget("/api/pack?id=" + encodeURIComponent(id));
+  if(!pack) return;
+  S.pack = pack;
   S.wf = S.pack.default_workflow;
   S.runId = null; S.since = 0; S.visited = new Set(); S.nodeEls = {};
+  S.lastScenario = null; $("rerunbtn").disabled = true;
   renderSide(); renderWfTabs(); renderGraph(); resetTrace();
   $("wflabel").textContent = S.pack.name + " · " + S.wf;
   $("result").innerHTML = '<span class="kv">点击左侧场景运行</span>';
@@ -181,8 +240,14 @@ function setWf(n){
 }
 
 /* ------------------------------------------------ 图 */
-function edgePath(a,b){
+function edgePath(a,b,geo){
   const x1=a.x+a.w, y1=a.y+a.h/2, x2=b.x, y2=b.y+b.h/2;
+  // 跨带连线：从右缘出、沿带间缝隙折回左侧，避免长斜线穿过中间节点
+  if(a.band !== b.band && geo){
+    const xR = geo.maxX + 26, xL = -26;
+    const yMid = (geo.bandBot[a.band] + geo.bandTop[b.band]) / 2;
+    return `M${x1},${y1} H${xR} V${yMid} H${xL} V${y2} H${x2}`;
+  }
   if(x2 > x1 + 8){
     const dx = Math.max(46,(x2-x1)*0.5);
     return `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`;
@@ -213,12 +278,21 @@ function renderGraph(){
   const pos = {};
   wf.nodes.forEach(n => { pos[n.id] = n; });
 
+  // 跨带连线的几何信息（每条带的上下边界 + 最右节点）
+  const geo = { bandTop:{}, bandBot:{}, maxX:0 };
+  wf.nodes.forEach(n => {
+    const b = n.band || 0;
+    geo.bandTop[b] = Math.min(geo.bandTop[b] ?? 1e9, n.y);
+    geo.bandBot[b] = Math.max(geo.bandBot[b] ?? -1e9, n.y + n.h);
+    geo.maxX = Math.max(geo.maxX, n.x + n.w);
+  });
+
   wf.edges.forEach(e => {
     const a = pos[e.from], b = pos[e.to];
     if(!a || !b) return;
     const p = document.createElementNS(NS,"path");
-    p.setAttribute("d", edgePath(a,b));
-    p.setAttribute("class","edge");
+    p.setAttribute("d", edgePath(a,b,geo));
+    p.setAttribute("class", e.back ? "edge back" : "edge");
     p.setAttribute("marker-end","url(#arrow)");
     svg.appendChild(p);
     if(e.label){
@@ -279,28 +353,57 @@ function resetTrace(){
 }
 
 async function runScenario(sid){
+  // 连点时先停掉上一条轮询：两个 poll 共用 S.since 会把同一批步数追加两次
+  S.pollToken = (S.pollToken || 0) + 1;
+  const tok = S.pollToken;
+  if(S.polling && S.runId) jpost("/api/cancel", {run_id: S.runId});
+
   resetTrace();
-  Object.values(S.nodeEls).forEach(g => { g.classList.remove("active","visited"); delete g.dataset.st; });
+  renderCard(null);
+  S.lastScenario = sid; $("rerunbtn").disabled = false;
+  Object.values(S.nodeEls).forEach(g => {
+    g.classList.remove("active","visited","fail"); delete g.dataset.st; });
   S.visited = new Set(); S.since = 0;
   const pace = $("pace").checked ? 380 : 0;
   const r = await jpost("/api/run", {pack:S.pack.id, scenario:sid, workflow:S.wf, pace_ms:pace});
-  if(!r.run_id){ $("result").innerHTML = '<span class="fail">启动失败</span>'; return; }
+  if(tok !== S.pollToken) return;          // 等待期间又被点了，本次作废
+  if(!r || !r.run_id){ $("result").innerHTML = '<span class="fail">启动失败</span>'; return; }
   S.runId = r.run_id; S.polling = true;
   $("result").innerHTML = '<span class="kv">运行中…</span>';
-  poll();
+  poll(tok);
+}
+
+function rerun(){
+  if(S.lastScenario) runScenario(S.lastScenario);
+}
+
+/* 只看异常 */
+function refilter(){
+  const only = $("onlybad").checked;
+  $("tracebody").querySelectorAll("tr[data-status]").forEach(tr => {
+    tr.style.display = (only && tr.dataset.status === "ok") ? "none" : "";
+  });
+}
+
+/* 图：默认缩放到整屏可见，勾 1:1 回到原始尺寸并允许滚动 */
+function toggleZoom(){
+  $("graphwrap").classList.toggle("zoom1", $("zoom").checked);
 }
 
 async function stopRun(){
   if(S.runId) await jpost("/api/cancel", {run_id:S.runId});
 }
 
-async function poll(){
+async function poll(tok){
+  if(tok !== undefined && tok !== S.pollToken) return;   // 已被新的一次运行取代
   if(!S.polling || !S.runId) return;
   const r = await jget(`/api/run?id=${S.runId}&since=${S.since}`);
+  if(tok !== undefined && tok !== S.pollToken) return;
+  if(!r){ S.polling = false; return; }
   if(r.error && r.status!=="running"){ finish(r); return; }
   (r.steps||[]).forEach(st => { appendStep(st); activate(st.node, st.status); });
   S.since = r.total_steps || 0;
-  if(r.status === "running") setTimeout(poll, 110);
+  if(r.status === "running") setTimeout(() => poll(tok), 110);
   else finish(r);
 }
 
@@ -320,13 +423,64 @@ function finish(r){
     `<span class="kv">节点步数 <b>${r.total_steps}</b></span>` +
     (r.error ? `<span class="fail">${esc(r.error)}</span>` : "") +
     fails.map(f => `<span class="fail">${esc(f)}</span>`).join("");
+  renderCard(res.verify);
+  highlightFails(fails);
+  // 跑完回到图的起点：静止画面留给拓扑，过程回放靠轨迹表
+  $("graphwrap").scrollTop = 0;
+}
+
+/* 跌倒核验评分卡：verdict + 五个子分 + 判定理由 + 升级参数 */
+function renderCard(v){
+  const box = $("card");
+  if(!v){ box.classList.remove("on"); box.innerHTML = ""; return; }
+  const meta = VERDICT[v.verdict] || { cn: v.verdict, color: "#8b9bb8" };
+  const bars = Object.keys(SUBS)
+    .filter(k => v.subscores && k in v.subscores)
+    .map(k => {
+      const pct = Math.round((v.subscores[k] || 0) * 100);
+      return `<span>${SUBS[k]}</span>` +
+             `<span class="bar"><i style="width:${pct}%"></i></span>` +
+             `<span class="num">${pct}%</span>`;
+    }).join("");
+  const why = (v.reasons || []).map(r => `<div>· ${esc(r)}</div>`).join("");
+  const escLine = `<div class="esc">
+      <span>振铃 <b>${v.ring_s}s</b></span>
+      <span>升级预算 <b>${v.budget_s}s</b></span>
+      <span>${v.needs_voice ? "已发起语音确认" : "直接派发"}</span>
+    </div>`;
+  box.innerHTML =
+    `<div class="head">
+       <span class="vname" style="color:${meta.color}">${esc(meta.cn)}</span>
+       <span class="score">综合得分 <b>${(v.score || 0).toFixed(3)}</b></span>
+     </div>
+     <div class="bars">${bars}</div>
+     <div class="why">${why}${escLine}</div>`;
+  box.classList.add("on");
+}
+
+/* 断言失败 → 把产出那个 ctx 键的节点标红虚线 */
+function highlightFails(fails){
+  if(!S.pack || !fails.length) return;
+  const wf = S.pack.workflows[S.wf] || {};
+  const outMap = {};
+  (wf.nodes || []).forEach(n => { if(n.out) outMap[n.out] = n.id; });
+  fails.forEach(f => {
+    const m = /^ctx\.([A-Za-z0-9_]+)/.exec(f);
+    const nodeId = m && outMap[m[1]];
+    const g = nodeId && S.nodeEls[nodeId];
+    if(g) g.classList.add("fail");
+  });
 }
 
 function appendStep(st){
   const tb = $("tracebody");
+  // 同一 seq 只画一次：即便上游重复投递，也不让轨迹表出现双行
+  if(tb.querySelector(`tr[data-seq="${st.seq}"]`)) return;
   tb.querySelectorAll(".empty").forEach(e => e.remove());
   const tr = document.createElement("tr");
   tr.className = "st-" + st.status;
+  tr.dataset.status = st.status;
+  tr.dataset.seq = st.seq;
   tr.innerHTML =
     `<td class="num">${st.seq}</td>` +
     `<td class="mono">${esc(st.node)}</td>` +
@@ -337,6 +491,7 @@ function appendStep(st){
   tb.appendChild(tr);
   const wrap = $("tracewrap");
   wrap.scrollTop = wrap.scrollHeight;
+  if($("onlybad").checked && st.status === "ok") tr.style.display = "none";
 }
 
 function activate(nodeId, status){
@@ -349,6 +504,8 @@ function activate(nodeId, status){
   });
   g.classList.add("active");
   if(status === "veto" || status === "error") g.dataset.st = status;
+  // 折行后活跃节点可能在下一条带里，把它滚进可视区
+  try { g.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch(e) {}
 }
 
 boot();

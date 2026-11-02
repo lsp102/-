@@ -21,11 +21,13 @@ import os
 import threading
 import time
 import urllib.request
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
 
 from .expr import Evaluator, ExprError
 from .knowledge import CaseKnowledge, DocKnowledge, KnowledgeHub, RuleKnowledge
+from .memory import MemoryPolicy, MemoryStore, store_for
 from .pack import Pack
 from .trace import Trace
 
@@ -81,7 +83,8 @@ def _brief(v, n: int = 60) -> str:
 class Engine:
     def __init__(self, pack: Pack, params: dict | None = None,
                  shared: dict | None = None, mode: str = "mock",
-                 on_step=None):
+                 on_step=None, memory: MemoryStore | None = None,
+                 state_dir: str | Path | None = None):
         self.pack = pack
         self.on_step = on_step
         self.pace_s = 0.0
@@ -91,6 +94,11 @@ class Engine:
         self.params: dict = dict(self.base_params)
         self.shared: dict = shared if shared is not None else {}
         self.mode = mode
+        # 跨运行持久记忆（memory 节点的后端）；handler 也可以直接 rt.memory.get(...)
+        # 哪些键允许落盘由 pack 的 memory 配置决定（默认全部，可改成白名单）
+        mem_cfg = pack.meta.get("memory") or pack.data.get("memory") or {}
+        self.memory: MemoryStore = memory or store_for(
+            pack.id, state_dir, MemoryPolicy.from_config(mem_cfg))
 
         self.trace = Trace()
         self.ctx: dict = {}
@@ -99,12 +107,23 @@ class Engine:
         self._cancel = threading.Event()
         self._ev: Evaluator | None = None
         self._lock = threading.RLock()
+        # 线程局部：并行分支的“不要越过汇合点”屏障，避免分支跑过 join 导致重复执行
+        self._tl = threading.local()
+        # 当前正在执行的 Agent id（供 handler 用 rt.require_cap() 自查权限）
+        self._agent = ""
+        # 已经自己记过轨迹的节点（parallel 在启动分支前先记一步，
+        # 用集合而不是布尔标志：布尔会被分支线程里的 _exec 提前消费掉）
+        self._pre_emitted: set[str] = set()
 
         self.hub = self._build_kb()
 
     # ---------------------------------------------------------- 知识库
 
     def _build_kb(self) -> KnowledgeHub:
+        # 一个 pack 的知识源是只读的，跨 Engine 复用；validate 跑 10 个场景以前要建 10 次
+        cached = getattr(self.pack, "hub", None)
+        if cached is not None:
+            return cached
         hub = KnowledgeHub()
         rules = (self.pack.data.get("rules") or {}).get("rules") or []
         if rules:
@@ -113,6 +132,7 @@ class Engine:
             hub.register(DocKnowledge(self.pack.kb_dir, name="文档知识库"))
         if "cases" in self.pack.data:
             hub.register(CaseKnowledge(items=(self.pack.data["cases"] or {}).get("lessons", [])))
+        self.pack.hub = hub
         return hub
 
     # ---------------------------------------------------------- 对外
@@ -125,16 +145,32 @@ class Engine:
             self.sim_ms += max(int(ms), 0)
 
     def require(self, agent_id: str, cap: str):
-        ad = self.pack.agents.get(agent_id) or {}
+        ad = self.pack.agents.get(agent_id)
+        if ad is None:
+            raise PermissionDenied(f"Agent 未注册，无法授权 [{cap}]: {agent_id}")
         if cap not in ad.get("permissions", []):
             raise PermissionDenied(f"{agent_id} 未被授予权限 [{cap}]")
+
+    def require_cap(self, cap: str):
+        """供 handler 自查：当前执行中的 Agent 是否被授予该能力。
+
+        这条以前只存在于文档里 —— require() 定义了却没人调用，permissions
+        字段纯属摆设。现在由 handler 主动声明自己需要什么能力。
+        """
+        aid = self._agent
+        if not aid:
+            return
+        self.require(aid, cap)
 
     def call_tool(self, agent_id: str, tool: str, **kw):
         fn = self.pack.tools.get(tool)
         if fn is None:
             raise KeyError(f"工具未注册: {tool}")
         ad = self.pack.agents.get(agent_id)
-        if ad is not None and tool not in ad.get("tools", []):
+        # 以前 ad is None 就跳过检查 = 任何未注册的 agent 名都能绕过工具白名单
+        if ad is None:
+            raise PermissionDenied(f"Agent 未注册，无法调用工具 [{tool}]: {agent_id}")
+        if tool not in ad.get("tools", []):
             raise PermissionDenied(f"{agent_id} 无 [{tool}] 工具权限")
         return fn(self, **kw)
 
@@ -154,6 +190,8 @@ class Engine:
         self.sim_ms = 0
         self._final = ""
         self._cancel.clear()
+        self._agent = ""
+        self._tl.barrier = None
 
         ctx: dict[str, Any] = {
             "params": self.params,
@@ -183,11 +221,13 @@ class Engine:
         node = wf.get("entry")
         steps = 0
         try:
-            while node and steps < MAX_STEPS:
+            # 以前是 while node and steps < MAX_STEPS + 事后 steps >= MAX_STEPS 判死循环，
+            # 结果“恰好 500 步”的合法工作流会被误判成死循环。
+            while node:
                 steps += 1
+                if steps > MAX_STEPS:
+                    raise WorkflowError(f"超过最大步数 {MAX_STEPS}，疑似死循环")
                 node = self._exec(node)
-            if steps >= MAX_STEPS:
-                raise WorkflowError(f"超过最大步数 {MAX_STEPS}，疑似死循环")
             res.final = self._final or "unfinished"
         except Exception as e:
             res.error = f"{type(e).__name__}: {e}"
@@ -202,9 +242,17 @@ class Engine:
     def _exec(self, node_id: str | None) -> str | None:
         if not node_id:
             return None
+        # 并行分支：走到汇合点就收尾，把 join 留给主线程，避免同一段被跑两遍
+        if getattr(self._tl, "barrier", None) == node_id:
+            return None
         node = (self._wf.get("nodes") or {}).get(node_id)
         if node is None:
             raise WorkflowError(f"节点不存在: {node_id}")
+        # 协作式中断：非 end 节点开始前检查；end 必须放行，否则结局会被中断吞掉
+        if self._cancel.is_set() and node.get("type") != "end":
+            self._final = "cancelled"
+            self._emit(node_id, node, "cancel", "收到中断请求，剩余节点不再执行", 0)
+            return None
         impl = NODE_IMPL.get(node.get("type"))
         if impl is None:
             raise WorkflowError(f"未知节点类型: {node.get('type')}")
@@ -218,7 +266,11 @@ class Engine:
                 return node["on_error"]
             raise
         ms = int((time.perf_counter() - t0) * 1000)
-        self._emit(node_id, node, status, summary, ms)
+        if node_id in self._pre_emitted:
+            # parallel 已经在启动分支前自己记了一步，这里不再重复
+            self._pre_emitted.discard(node_id)
+        else:
+            self._emit(node_id, node, status, summary, ms)
         return nxt
 
     def _emit(self, node_id: str, node: dict, status: str, summary: str, ms: int):
@@ -245,7 +297,12 @@ def _node_agent(rt: "Engine", nid: str, n: dict):
     if ad is None:
         raise KeyError(f"Agent 未注册: {aid}")
     inputs = {k: rt._ev.eval(v) for k, v in (n.get("input") or {}).items()}
-    out = _invoke(rt, aid, ad, inputs)
+    prev = rt._agent
+    rt._agent = aid            # handler 里的 rt.require_cap() 靠它知道自己是谁
+    try:
+        out = _invoke(rt, aid, ad, inputs)
+    finally:
+        rt._agent = prev
     status = "ok"
     if isinstance(out, dict) and "_status" in out:
         status = str(out.pop("_status"))
@@ -294,7 +351,10 @@ def _llm(rt: "Engine", ad: dict, inputs: dict) -> str:
 
 def _node_tool(rt: "Engine", nid: str, n: dict):
     args = {k: rt._ev.eval(v) for k, v in (n.get("args") or {}).items()}
-    out = rt.call_tool(n.get("agent", "platform"), n["tool"], **args)
+    agent = n.get("agent")
+    if not agent:
+        raise PermissionDenied(f"节点 {nid} 的工具调用未声明 agent，无法校验工具白名单")
+    out = rt.call_tool(agent, n["tool"], **args)
     key = n.get("out") or n["tool"].split(".")[-1]
     rt.ctx[key] = out
     return n.get("next"), f"{n['tool']} → {_brief(out)}", "ok"
@@ -302,18 +362,38 @@ def _node_tool(rt: "Engine", nid: str, n: dict):
 
 def _node_condition(rt: "Engine", nid: str, n: dict):
     v = bool(rt._ev.eval(n["when"]))
-    return (n.get("then") if v else n.get("else")), f"{n['when']} ⇒ {v}", "ok"
+    key = "then" if v else "else"
+    nxt = n.get(key)
+    if nxt is None:
+        # 以前这里返回 None 会静默结束整个工作流，结局变成 "unfinished"，
+        # 看起来像“跑完了”，实际是断了。
+        raise WorkflowError(f"节点 {nid} 判定为 {v}，但没有声明 {key} 转移")
+    return nxt, f"{n['when']} ⇒ {v}", "ok"
 
 
 def _node_parallel(rt: "Engine", nid: str, n: dict):
     branches = list(n.get("branches") or [])
     errors: list[str] = []
+    barrier = n.get("next")      # 汇合点由主线程执行，分支到此为止
+
+    # 先把扇出这一步记进轨迹，否则并行节点会排在它自己的子节点之后，
+    # 时间线读起来像是“先跑分支再宣布扇出”。
+    rt._emit(nid, n, "ok", f"并行扇出 {len(branches)} 分支", 0)
+    rt._pre_emitted.add(nid)
 
     def go(b):
+        # 每个分支线程独立的屏障，分支若把 next 指到 join 之后也不会越界
+        rt._tl.barrier = barrier
         try:
-            rt._exec(b)
+            # 分支是一条链，要一路走到链尾（或屏障）为止。
+            # 以前这里只 _exec 一次，多节点分支会在第一个节点后静默截断。
+            node = b
+            while node:
+                node = rt._exec(node)
         except Exception as e:  # noqa: BLE001
             errors.append(f"{b}: {e}")
+        finally:
+            rt._tl.barrier = None
 
     ts = [threading.Thread(target=go, args=(b,), daemon=True) for b in branches]
     for t in ts:
@@ -330,19 +410,43 @@ def _node_foreach(rt: "Engine", nid: str, n: dict):
     if not isinstance(items, (list, tuple)):
         items = [items]
     maxn = int(n.get("max", 20))
+    on_exhausted = n.get("on_exhausted")
+    if on_exhausted is None:
+        raise WorkflowError(f"节点 {nid} 缺少 on_exhausted 转移（遍历结束无处可去）")
+    # 保存旧值：以前循环结束后 item/index 会残留在全局 names 里，嵌套 foreach 会串味
+    old_item = rt._ev.names.get("item", KeyError)
+    old_index = rt._ev.names.get("index", KeyError)
+    had_ctx_item, had_ctx_index = "item" in rt.ctx, "index" in rt.ctx
     ran = 0
-    for i, item in enumerate(items):
-        rt.ctx["item"] = item
-        rt.ctx["index"] = i
-        rt._ev.names["item"] = item
-        rt._ev.names["index"] = i
-        rt._exec(n.get("body"))
-        ran += 1
-        if n.get("break_when") and bool(rt._ev.eval(n["break_when"])):
-            return n.get("on_break"), f"第 {ran} 次命中中断条件", "ok"
-        if ran >= maxn:
-            break
-    return n.get("on_exhausted"), f"遍历 {ran} 项，未命中中断条件", "ok"
+    try:
+        for i, item in enumerate(items):
+            # 协作式中断：升级链是唯一可能跑很久的地方，在每项之间给中断留出口
+            if rt._cancel.is_set():
+                rt._final = "cancelled"
+                return None, "收到中断请求，停止遍历", "cancel"
+            rt.ctx["item"] = item
+            rt.ctx["index"] = i
+            rt._ev.names["item"] = item
+            rt._ev.names["index"] = i
+            rt._exec(n.get("body"))
+            ran += 1
+            if n.get("break_when") and bool(rt._ev.eval(n["break_when"])):
+                return n.get("on_break"), f"第 {ran} 次命中中断条件", "ok"
+            if ran >= maxn:
+                break
+    finally:
+        _restore(rt, "item", old_item, had_ctx_item)
+        _restore(rt, "index", old_index, had_ctx_index)
+    return on_exhausted, f"遍历 {ran} 项，未命中中断条件", "ok"
+
+
+def _restore(rt: "Engine", key: str, old, had_ctx: bool):
+    if old is KeyError:
+        rt._ev.names.pop(key, None)
+    else:
+        rt._ev.names[key] = old
+    if not had_ctx:
+        rt.ctx.pop(key, None)
 
 
 def _node_wait(rt: "Engine", nid: str, n: dict):
@@ -351,7 +455,10 @@ def _node_wait(rt: "Engine", nid: str, n: dict):
     deadline = time.time() + secs
     while time.time() < deadline:
         if rt._cancel.is_set():
-            return n.get("on_cancel"), "窗口内被撤销", "cancel"
+            nxt = n.get("on_cancel")
+            if nxt is None:
+                raise WorkflowError(f"节点 {nid} 被撤销，但没有声明 on_cancel 转移")
+            return nxt, "窗口内被撤销", "cancel"
         time.sleep(min(0.05, max(deadline - time.time(), 0.001)))
     return n.get("next"), f"等待 {secs:.1f}s 未被撤销", "ok"
 
@@ -373,6 +480,44 @@ def _node_transform(rt: "Engine", nid: str, n: dict):
     return n.get("next"), f"写入 {','.join(sets)}", "ok"
 
 
+def _node_memory(rt: "Engine", nid: str, n: dict):
+    """跨运行的持久记忆。op = get / set / incr / append / delete。
+
+    key 可以是字面量（`key`），也可以是表达式（`key_expr`）。
+    节点的 `"persist": true/false` 可以逐次覆盖 pack 的记忆策略。
+    """
+    op = str(n.get("op") or "get")
+    key = str(rt._ev.eval(n["key_expr"])) if n.get("key_expr") else str(n.get("key", ""))
+    if not key:
+        raise WorkflowError(f"节点 {nid} 的 memory 操作缺少 key / key_expr")
+
+    persist = n.get("persist")
+    if persist is not None:
+        persist = bool(persist)
+
+    out_key = n.get("out") or "mem"
+    if op == "get":
+        val = rt.memory.get(key, n.get("default"))
+    elif op == "set":
+        val = rt._ev.eval(n["value_expr"]) if "value_expr" in n else n.get("value")
+        rt.memory.set(key, val, persist)
+    elif op == "incr":
+        by = rt._ev.eval(n["by"]) if "by" in n else 1
+        val = rt.memory.incr(key, by, persist)
+    elif op == "append":
+        val = rt._ev.eval(n["value_expr"]) if "value_expr" in n else n.get("value")
+        val = rt.memory.append(key, val, int(n.get("maxlen", 100)), persist)
+    elif op == "delete":
+        val = rt.memory.delete(key)
+    else:
+        raise WorkflowError(f"节点 {nid} 的 memory 操作未知: {op}")
+
+    rt.add_latency(int(n.get("latency_ms", 1)))
+    rt.ctx[out_key] = val
+    scope = "持久" if rt.memory.is_persisted(key) else "仅本进程"
+    return n.get("next"), f"memory {op} {key} → {_brief(val, 40)}（{scope}）", "ok"
+
+
 def _node_end(rt: "Engine", nid: str, n: dict):
     rt._final = str(n.get("status") or nid)
     return None, f"结束 → {rt._final}", "ok"
@@ -387,6 +532,7 @@ NODE_IMPL = {
     "foreach": _node_foreach,
     "wait": _node_wait,
     "knowledge": _node_knowledge,
+    "memory": _node_memory,
     "transform": _node_transform,
     "end": _node_end,
 }
