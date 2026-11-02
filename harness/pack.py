@@ -53,7 +53,17 @@ class Pack:
     hub: object | None = field(default=None, repr=False, compare=False)
 
     def params(self) -> dict:
-        return dict(self.meta.get("params") or {})
+        # data/tuned.json 是 Self-Loop 采纳后的覆盖值，优先于 pack.json 的默认值
+        base = dict(self.meta.get("params") or {})
+        tuned = self.data.get("tuned")
+        if isinstance(tuned, dict):
+            base.update({k: v for k, v in tuned.items() if not k.startswith("_")})
+        return base
+
+    @property
+    def tunable(self) -> dict:
+        """pack 声明的可调项，selfloop 按它扫描。"""
+        return dict(self.meta.get("tunable") or {})
 
     def scenario(self, sid: str) -> dict | None:
         for s in self.scenarios:
@@ -87,7 +97,8 @@ def _load_module(path: Path) -> ModuleType | None:
 
 
 def _read_json(path: Path):
-    return json.loads(path.read_text(encoding="utf-8"))
+    # utf-8-sig：容忍 Windows 记事本/PowerShell 写出的 BOM，否则 json.loads 直接抛
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def _signature(d: Path) -> tuple:

@@ -21,6 +21,8 @@ python -m harness.cli validate research-brief
 python -m harness.cli audit fall-response     # 死规则 / 不可达节点 / 权限缺声明
 python -m harness.cli dump fall-response s3   # 轨迹导出（Markdown，加 --json 出 JSON）
 python -m harness.cli learn fall-response --title "结论" --text "证据与理由"   # 经验回写
+python -m harness.cli tune fall-response        # 自我循环：扫描参数 → 建议
+python -m harness.cli tune fall-response --apply # 采纳建议 → 写回 data/tuned.json + 记经验 → 再验证
 python -m unittest discover -s tests          # 51 个回归用例
 powershell -File tools/shot.ps1               # 无头 Edge 重拍控制台截图到 shots/
 ```
@@ -193,7 +195,7 @@ push(); for c in contacts: call(c)
 
 ## 下一步
 
-1. Self-Loop 迁到新引擎，调优目标从"振铃等待"泛化为"任意 pack 声明的参数"
+1. 多参数联合调优：现在 `tune` 一次只扫一个可调项，联合扫描要处理组合爆炸与通过率约束
 2. 接真实 LLM，重跑对照实验
 3. 第三个 pack：知识密集型任务，验证 `knowledge` + `foreach` 组合
 4. 删除旧版 `app/` 与 `experiment.py`

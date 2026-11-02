@@ -17,13 +17,17 @@ from .pack import Pack
 
 def run_scenario(pack: Pack, scenario: dict, workflow: str | None = None,
                  pace_ms: int = 0, shared: dict | None = None,
-                 on_step=None, state_dir: str | None = None) -> tuple[RunResult, Engine]:
+                 on_step=None, state_dir: str | None = None,
+                 overrides: dict | None = None) -> tuple[RunResult, Engine]:
     wf = (workflow or pack.meta.get("default_workflow")
           or next(iter(pack.workflows), None))
     if wf is None:
         raise ValueError("pack 里没有任何工作流")
 
-    eng = Engine(pack, params={"pace_ms": pace_ms},
+    params = {"pace_ms": pace_ms}
+    if overrides:
+        params.update(overrides)
+    eng = Engine(pack, params=params,
                  shared=shared if shared is not None else {}, on_step=on_step,
                  state_dir=state_dir)
 

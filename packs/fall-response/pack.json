@@ -12,8 +12,17 @@
     "confidence_threshold": 0.6,
     "cancel_window_s": 0.0,
     "ring_timeout_s": 30.0,
+    "ring_scale": 1.0,
     "answer_ring_s": 6.0,
     "push_ms": 200
+  },
+  "tunable": {
+    "ring_scale": {
+      "label": "振铃等待缩放系数",
+      "candidates": [1.0, 0.95, 0.9, 0.8, 0.6, 0.4, 0.2],
+      "goal": "min",
+      "metric": "sim_ms"
+    }
   },
   "memory": {
     "desc": "只把“每位老人确认/疑似跌倒的次数”持久化；其余键仅留在进程内",

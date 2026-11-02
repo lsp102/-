@@ -217,6 +217,54 @@ def cmd_learn(a):
     return 0
 
 
+def cmd_tune(a):
+    from .selfloop import _num, adopt, record_lesson, review, run_all, sweep
+
+    p = _load(a.pack)
+    targets = p.tunable
+    if not targets:
+        print("这个 pack 没有声明可调项（在 pack.json 里加 tunable 段）")
+        return 1
+    target = a.target or next(iter(targets))
+    if target not in targets:
+        print(f"pack 未声明可调项 {target}；可选：{', '.join(targets)}")
+        return 1
+
+    spec = targets[target]
+    cands = [float(x) for x in a.candidates.split(",")] if a.candidates else None
+    label = spec.get("label") or target
+
+    print(f"pack={p.id}  可调项={target}（{label}）")
+    print("-" * 76)
+    rows = sweep(p, target, cands)
+    print(f"{'取值':>8} {'通过':>9} {'平均响应(s)':>13}  失败场景")
+    for r in rows:
+        mark = "✓" if r["passed"] == r["total"] else "✗"
+        cur = "  ← 当前" if r["current"] else ""
+        print(f"{_num(r['value']):>8} {r['passed']}/{r['total']} {mark:>3} "
+              f"{r['avg_ms'] / 1000:>13.1f}  {','.join(r['failed']) or '—'}{cur}")
+
+    sug = review(rows, spec)
+    sug["target"] = target
+    print("-" * 76)
+    print("建议：" + sug["text"])
+
+    if not a.apply:
+        print("\n（未采纳。加 --apply 写回 data/tuned.json 并记入经验库）")
+        return 0
+
+    info = adopt(p, target, sug)
+    print(f"\n已写入 {info['file']}  {info['params']}")
+    item = record_lesson(p, target, sug)
+    print(f"已记入经验库 {item['id']}：{item['title']}")
+
+    fresh = _load(a.pack)
+    after = run_all(fresh)
+    print(f"再验证：通过 {after['passed']}/{after['total']}，"
+          f"平均响应 {after['avg_ms'] / 1000:.1f}s")
+    return 0 if after["passed"] == after["total"] else 1
+
+
 def main(argv=None):
     _utf8()
     ap = argparse.ArgumentParser(prog="platform.cli")
@@ -255,6 +303,13 @@ def main(argv=None):
     p.add_argument("--text", required=True)
     p.add_argument("--source", default="manual")
     p.set_defaults(fn=cmd_learn)
+
+    p = sub.add_parser("tune", help="自我循环：扫描参数 → 建议 → 采纳 → 回写经验")
+    p.add_argument("pack")
+    p.add_argument("--target", help="可调项名字，缺省取 pack 声明的第一个")
+    p.add_argument("--candidates", help="逗号分隔的候选值，覆盖 pack 声明")
+    p.add_argument("--apply", action="store_true", help="采纳建议并写回")
+    p.set_defaults(fn=cmd_tune)
 
     a = ap.parse_args(argv)
     return a.fn(a)

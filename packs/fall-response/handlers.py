@@ -133,6 +133,11 @@ def verify(rt, ins):
 
     esc = policy.get(verdict) or {}
     ring = _num(esc.get("ring_s"), _num(rt.params.get("ring_timeout_s"), 30.0))
+    # ring_scale 是平台可调项：策略给的是各等级的基准振铃，
+    # 实际值按全局系数缩放，这样调优既能生效、又不破坏分等级的差异。
+    scale = _num(rt.params.get("ring_scale"), 1.0)
+    if 0 < scale != 1.0:
+        ring = round(ring * scale, 2)
     budget = _num(esc.get("budget_s"), 0.0)
     needs_voice = (verdict == "suspected"
                    or sig["confidence"] < _num(voice.get("low_confidence_below"), 0.8))
