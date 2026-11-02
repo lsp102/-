@@ -39,5 +39,18 @@
       {"id": "c1", "name": "陈静（女儿，同住）", "role": "family", "phone": "137-0000-0021"},
       {"id": "c2", "name": "阳光社区值班室", "role": "community", "phone": "010-6666-1234"}
     ]
+  },
+  "e004": {
+    "elder_id": "e004",
+    "name": "周德海",
+    "age": 82,
+    "lives_alone": true,
+    "conditions": ["高血压"],
+    "medications": ["氨氯地平"],
+    "address": "阳光小区 9 栋 1 单元 203",
+    "note": "无直系联系人，只能联系社区；用于覆盖 R-NO_FAMILY / R-AGE_80 与社区+120 的兜底路径",
+    "contacts": [
+      {"id": "c1", "name": "阳光社区值班室", "role": "community", "phone": "010-6666-1234"}
+    ]
   }
 }

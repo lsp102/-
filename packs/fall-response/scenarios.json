@@ -129,5 +129,28 @@
       "ctx.verify.verdict": "confirmed",
       "ctx.call.answered": true
     }
+  },
+  {
+    "id": "s14",
+    "title": "无直系联系人 · 高龄 · 转社区并提示 120",
+    "profile": "e004",
+    "event": { "confidence": 0.92, "base_level": "mid", "source": "phone_sensor" },
+    "params": {},
+    "expect": {
+      "final": "community_120",
+      "ctx.triage.level": "critical",
+      "ctx.triage.need_120": true
+    }
+  },
+  {
+    "id": "s15",
+    "title": "信号置信度不足 · 直接丢弃",
+    "profile": "e002",
+    "event": { "confidence": 0.35, "base_level": "low", "source": "phone_sensor" },
+    "params": {},
+    "expect": {
+      "final": "discarded",
+      "trace.node:triage": 0
+    }
   }
 ]

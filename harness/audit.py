@@ -125,8 +125,12 @@ def audit_pack(pack: Pack, run_scenarios: bool = True) -> dict:
                 add("warn", "RULE_UNCOVERED",
                     f"规则 {r.get('id')} 从未被任何场景触发：{r.get('desc', '')}", str(r.get("id")))
 
-    defined_ends = {n.get("status") for wf in pack.workflows.values()
-                    for n in (wf.get("nodes") or {}).values()
+    # 只跟"本次实际跑的那条工作流"比：single.json 里的 no_answer 永远不会在
+    # response 工作流里出现，把所有工作流的结局合并进来会永远误报。
+    wf_under_test = pack.workflows.get(
+        pack.meta.get("default_workflow") or next(iter(pack.workflows), "")
+    ) or {}
+    defined_ends = {n.get("status") for n in (wf_under_test.get("nodes") or {}).values()
                     if n.get("type") == "end"}
     for st in sorted(defined_ends - finals):
         add("warn", "END_UNUSED", f"结局 {st} 没有任何场景走到", st)
