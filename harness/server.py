@@ -112,6 +112,8 @@ def _execute(run: Run, pack, scenario: dict, workflow: str, pace_ms: int):
             "trace_summary": res.trace.summary() if res.trace else {},
             # 跌倒核验的结构化结果，前端拿它画评分卡（不再从轨迹摘要里猜）
             "verify": res.ctx.get("verify"),
+            # LLM 生成的家属沟通建议（未配 key 时是 mock 文本）
+            "advice": res.ctx.get("advice"),
         }
         run.status = "done" if not res.error else "error"
     except Exception as e:  # noqa: BLE001

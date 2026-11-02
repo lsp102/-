@@ -107,6 +107,19 @@
         "level": "ctx.triage.level"
       },
       "out": "msg",
+      "next": "advise"
+    },
+    "advise": {
+      "type": "agent",
+      "actor": "advisor",
+      "agent": "advisor",
+      "input": {
+        "风险等级": "ctx.triage.level",
+        "搬动禁忌": "ctx.triage.forbid_move",
+        "命中规则": "ctx.triage.matched",
+        "已生成的通知": "ctx.msg.text"
+      },
+      "out": "advice",
       "next": "cancel_window"
     },
     "cancel_window": {

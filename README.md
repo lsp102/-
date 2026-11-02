@@ -23,11 +23,22 @@ python -m harness.cli dump fall-response s3   # 轨迹导出（Markdown，加 --
 python -m harness.cli learn fall-response --title "结论" --text "证据与理由"   # 经验回写
 python -m harness.cli tune fall-response        # 自我循环：扫描参数 → 建议
 python -m harness.cli tune fall-response --apply # 采纳建议 → 写回 data/tuned.json + 记经验 → 再验证
-python -m unittest discover -s tests          # 51 个回归用例
+python -m unittest discover -s tests          # 回归用例
 powershell -File tools/shot.ps1               # 无头 Edge 重拍控制台截图到 shots/
 ```
 
 零第三方依赖，Python 3.10+。
+
+启用真实 LLM（默认 mock，不配也能跑）：
+
+```powershell
+$env:DEEPSEEK_API_KEY = "sk-..."
+$env:HARNESS_MODE     = "real"
+python -m harness.cli run fall-response s3
+```
+
+只有声明了 `"driver": "llm"` 的 Agent（目前是「家属沟通顾问」）会调用模型；
+判定链路仍然走 handler，模型不参与安全关键决策。
 
 ---
 
@@ -38,6 +49,7 @@ powershell -File tools/shot.ps1               # 无头 Edge 重拍控制台截�
 | 工作流引擎（11 种节点原语） | ✅ | `harness/engine.py` |
 | 受限表达式语言（AST 白名单） | ✅ | `harness/expr.py` |
 | Agent 注册表 + 权限 / 工具白名单 | ✅ 权限由 handler 主动声明 | `packs/*/agents.json` |
+| LLM 驱动 Agent（`driver: "llm"`） | ✅ 无 key 时自动退回 mock，不阻塞验证 | `harness/engine.py` |
 | 知识库注册中心（规则 / 文档 / 经验） | ✅ | `harness/knowledge.py` |
 | 执行轨迹（可断言、可回放） | ✅ | `harness/trace.py` |
 | 验证套件（场景 + 断言） | ✅ | `harness/cli.py validate` |
@@ -182,7 +194,9 @@ push(); for c in contacts: call(c)
 
 ## 已知限制
 
-1. 两个 pack 的业务逻辑都是 mock handler，未接真实 LLM / 真实外呼
+1. 判定链路（核验 / 分诊 / 规则 / 外呼）仍是确定性 handler；只有「家属沟通顾问」走 LLM。
+   未配 `DEEPSEEK_API_KEY` 或 `HARNESS_MODE` 不是 `real` 时自动退回 mock 文本，验证不受影响。
+   这是刻意的：安全关键路径不进模型，模型只负责措辞。
 2. 响应时延是离散事件仿真，不是真实计时
 3. 单 Agent 基线是行为模拟，正式材料需用真实 API 重跑
 4. 同一 Engine 实例不保证多线程并发跑多个场景

@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import os
 import threading
 
 from .engine import Engine, RunResult
@@ -18,7 +19,8 @@ from .pack import Pack
 def run_scenario(pack: Pack, scenario: dict, workflow: str | None = None,
                  pace_ms: int = 0, shared: dict | None = None,
                  on_step=None, state_dir: str | None = None,
-                 overrides: dict | None = None) -> tuple[RunResult, Engine]:
+                 overrides: dict | None = None,
+                 mode: str | None = None) -> tuple[RunResult, Engine]:
     wf = (workflow or pack.meta.get("default_workflow")
           or next(iter(pack.workflows), None))
     if wf is None:
@@ -29,7 +31,8 @@ def run_scenario(pack: Pack, scenario: dict, workflow: str | None = None,
         params.update(overrides)
     eng = Engine(pack, params=params,
                  shared=shared if shared is not None else {}, on_step=on_step,
-                 state_dir=state_dir)
+                 state_dir=state_dir,
+                 mode=mode or os.environ.get("HARNESS_MODE", "mock"))
 
     res: RunResult | None = None
     for _ in range(max(int(scenario.get("repeat", 1) or 1), 1)):
