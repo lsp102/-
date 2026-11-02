@@ -36,8 +36,11 @@ from harness.runner import run_scenario              # noqa: E402
 
 PACKS_DIR = BASE / "packs"
 MAX_RUNS = 80
-# 可选访问令牌：设置 HARNESS_TOKEN 后，/api/* 需要带 X-Harness-Token 头或 ?token=
-TOKEN = os.environ.get("HARNESS_TOKEN", "")
+# 可选访问令牌：设置 HARNESS_TOKEN（或兼容 ACCESS_TOKEN）后，/api/* 需要令牌
+TOKEN = os.environ.get("HARNESS_TOKEN") or os.environ.get("ACCESS_TOKEN", "")
+MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT", "3"))
+_ACTIVE = {"n": 0}
+_ACTIVE_LOCK = threading.Lock()
 
 
 class Run:
@@ -114,6 +117,9 @@ def _execute(run: Run, pack, scenario: dict, workflow: str, pace_ms: int):
     except Exception as e:  # noqa: BLE001
         run.status = "error"
         run.error = f"{type(e).__name__}: {e}"
+    finally:
+        with _ACTIVE_LOCK:
+            _ACTIVE["n"] = max(0, _ACTIVE["n"] - 1)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -124,12 +130,15 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------------------------------------------------------------- 基础
 
-    def _send(self, code: int, body: str, ctype: str = "application/json"):
+    def _send(self, code: int, body: str, ctype: str = "application/json",
+              cookies: str | None = None):
         data = body.encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", f"{ctype}; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        if cookies:
+            self.send_header("Set-Cookie", cookies)
         self.end_headers()
         self.wfile.write(data)
 
@@ -150,16 +159,33 @@ class Handler(BaseHTTPRequestHandler):
     def _authorized(self, q: dict) -> bool:
         if not TOKEN:
             return True
-        got = self.headers.get("X-Harness-Token") or (q.get("token", [""])[0])
+        got = (self.headers.get("X-Harness-Token")
+               or q.get("token", [""])[0]
+               or self._cookie_token())
         return hmac.compare_digest(str(got), TOKEN)
+
+    def _cookie_token(self) -> str:
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == "fg_token":
+                return v
+        return ""
 
     def do_GET(self):
         u = urlparse(self.path)
         q = parse_qs(u.query)
 
+        if u.path == "/healthz":
+            return self._json({"ok": True, "active": _ACTIVE["n"]})
+
         if u.path in ("/", "/index.html"):
+            cookies = None
+            if TOKEN:
+                if not hmac.compare_digest(str(q.get("token", [""])[0]), TOKEN):
+                    return self._send(401, "需要访问令牌：/?token=你的令牌", "text/plain")
+                cookies = f"fg_token={TOKEN}; Path=/; SameSite=Lax"
             html = (BASE / "web" / "index.html").read_text(encoding="utf-8")
-            return self._send(200, html, "text/html")
+            return self._send(200, html, "text/html", cookies=cookies)
 
         if u.path.startswith("/api/") and not self._authorized(q):
             return self._json({"error": "unauthorized"}, 401)
@@ -240,6 +266,11 @@ class Handler(BaseHTTPRequestHandler):
             if wf not in pack.workflows:
                 return self._json({"error": "workflow not found"}, 400)
             pace = int(b.get("pace_ms") or 0)
+            with _ACTIVE_LOCK:
+                if _ACTIVE["n"] >= MAX_CONCURRENT:
+                    return self._json({"error": "busy",
+                                       "message": f"并发上限 {MAX_CONCURRENT}，请稍后再试"}, 429)
+                _ACTIVE["n"] += 1
             run = Run(pack, sc, wf)
             _remember(run)
             threading.Thread(target=_execute, args=(run, pack, sc, wf, pace),

@@ -11,8 +11,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 EXPOSE 8000
 
-# 健康检查：/api/packs 返回 JSON
+# 健康检查走 /healthz（不校验令牌）。
+# 用 /api/packs 会让开了 ACCESS_TOKEN 的实例被判为 unhealthy 而被反复重启。
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD python -c "import urllib.request,os;urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8000')+'/api/packs',timeout=2)"
+  CMD python -c "import urllib.request,os;urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8000')+'/healthz',timeout=2)"
 
 CMD ["python", "-m", "harness.server"]
