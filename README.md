@@ -1,4 +1,4 @@
-﻿# FallGuard Harness
+# FallGuard Harness
 
 **面向多智能体协作的编排、调度、执行与验证平台。**
 
@@ -198,3 +198,29 @@ push(); for c in contacts: call(c)
 3. 第三个 pack：知识密集型任务，验证 `knowledge` + `foreach` 组合
 4. 删除旧版 `app/` 与 `experiment.py`
 5. 用真实 IMU 数据标定 `fall_model.json` 的权重与阈值，并把误报率作为回归指标
+
+---
+
+## 协作约定
+
+并行开发请走**分支 + PR**，不要用网页的「上传 ZIP」。
+
+ZIP 只会作为一个二进制文件进入仓库：代码无法 diff、无法 review、无法合并，
+其他人也看不到你的改动。本项目 v0.4.0 就发生过一次，最后是人工解包重新提交的。
+
+```bash
+git checkout -b feat/你的改动
+git add -A
+git commit -m "feat(scope): 一句话说明"
+git push -u origin feat/你的改动
+```
+
+然后在 GitHub 上开 Pull Request。
+
+几条底线：
+
+- 不要提交 `__pycache__/`、`.harness_state/`、`results.csv`（`.gitignore` 已覆盖）
+- 令牌只放环境变量，不要写进会被提交的文件
+- 改引擎节点语义或 pack 数据格式时，必须跑完 `python -m unittest discover -s tests`
+  和两个 pack 的 `validate`，再合并
+
